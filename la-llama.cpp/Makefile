@@ -88,8 +88,10 @@ gcovr-report: coverage ## Generate gcovr report
 	gcovr --root . --html --html-details --output gcovr-report/coverage.html
 
 ifdef RISCV_CROSS_COMPILE
-CC	:= riscv64-unknown-linux-gnu-gcc
-CXX	:= riscv64-unknown-linux-gnu-g++
+# CC	:= riscv64-unknown-linux-gnu-gcc
+# CXX	:= riscv64-unknown-linux-gnu-g++
+CC	:= riscv64-linux-gnu-gcc
+CXX	:= riscv64-linux-gnu-g++
 endif
 
 #

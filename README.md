@@ -17,6 +17,10 @@ Especially, we want to tackle the following challenges:
 
 Based on the above challenges, the project can be divided into the following 4 stages:
 
+### Setup
+- Task: Build basic environments and get familiar to the codebase.
+- Objective: Environment setup and self warm-up.
+
 ### Porting
 - Task: Port llama.cpp to LoongArch platform.
 - Objective: Compile and run llama.cpp on 3A6000.
@@ -36,8 +40,12 @@ Based on the above challenges, the project can be divided into the following 4 s
 ## Miscellaneous
 - We develop based on release `b2430` of the [original repo](https://github.com/ggerganov/llama.cpp/releases/tag/b2430).
 
-## Progress and TODOs
-[x] Compile original llama.cpp on x86 CPU.
-[ ] Run LLM on x86 CPU.
-[x] Set up QEMU environment for LoongArch.
-[x] Set up cross compilation tools for LoongArch on x86.
+## Progress and TODO list
+
+### Setup Stage
+At this stage, we get familiar with the concept of cross compilation, build and 
+- [x] Compile and run original llama.cpp on x86 CPU.
+- [x] Cross compile llama.cpp to RISCV64 and run with QEMU on x86 CPU (refer to https://github.com/ggerganov/llama.cpp/pull/3453).
+- [x] Set up cross compilation tools and QEMU environment for LoongArch.
+
+### Porting Stage
