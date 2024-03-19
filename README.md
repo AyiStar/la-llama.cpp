@@ -49,3 +49,5 @@ At this stage, we get familiar with the concept of cross compilation, build and
 - [x] Set up cross compilation tools and QEMU environment for LoongArch.
 
 ### Porting Stage
+- [x] Alter the makefile for LoongArch cross compilation.
+- [x] Cross compile llama.cpp to LoongArch64.

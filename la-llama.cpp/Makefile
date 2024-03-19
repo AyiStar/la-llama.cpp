@@ -94,6 +94,11 @@ CC	:= riscv64-linux-gnu-gcc
 CXX	:= riscv64-linux-gnu-g++
 endif
 
+ifdef LOONGARCH_CROSS_COMPILE
+CC  := loongarch64-unknown-linux-gnu-gcc
+CXX := loongarch64-unknown-linux-gnu-g++
+endif
+
 #
 # Compile flags
 #
@@ -277,8 +282,15 @@ endif
 # TODO: probably these flags need to be tweaked on some architectures
 #       feel free to update the Makefile for your architecture and send a pull request or issue
 
-ifndef RISCV
+ifdef RISCV
+	MK_CFLAGS   += -march=rv64gcv -mabi=lp64d
+	MK_CXXFLAGS += -march=rv64gcv -mabi=lp64d
 
+else ifdef LOONGARCH
+	MK_CFLAGS   += -march=loongarch64 -mabi=lp64d
+	MK_CXXFLAGS += -march=loongarch64 -mabi=lp64d
+
+else
 ifeq ($(UNAME_M),$(filter $(UNAME_M),x86_64 i686 amd64))
 	# Use all CPU extensions that are available:
 	MK_CFLAGS     += -march=native -mtune=native
@@ -352,9 +364,6 @@ ifneq ($(filter ppc64le%,$(UNAME_M)),)
 	CUDA_POWER_ARCH = 1
 endif
 
-else
-	MK_CFLAGS   += -march=rv64gcv -mabi=lp64d
-	MK_CXXFLAGS += -march=rv64gcv -mabi=lp64d
 endif
 
 ifdef LLAMA_QKK_64
