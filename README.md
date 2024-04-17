@@ -51,3 +51,11 @@ At this stage, we get familiar with the concept of cross compilation, build and
 ### Porting Stage
 - [x] Alter the makefile for LoongArch cross compilation.
 - [x] Cross compile llama.cpp to LoongArch64.
+
+### Optimization Stage
+Thanks to [the excellent work from Loongson team](https://github.com/ggerganov/llama.cpp/pull/6454), we have a great oppotunity to learn about SIMD acceleration with LoongArch LSX/LASX vector instruction set. Part of our work are based on them.
+- [x] Add LSX/LASX SIMD support for GGML_SIMD in `ggml.c`.
+
+### Benchmark Stage
+Benchmark goes along with optimization because we always want to know the exact improvement.
+- [ ] 

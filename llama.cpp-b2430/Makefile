@@ -95,8 +95,8 @@ CXX	:= riscv64-linux-gnu-g++
 endif
 
 ifdef LOONGARCH_CROSS_COMPILE
-CC  := loongarch64-unknown-linux-gnu-gcc
-CXX := loongarch64-unknown-linux-gnu-g++
+CC  := loongarch64-linux-gnu-gcc
+CXX := loongarch64-linux-gnu-g++
 endif
 
 #
@@ -287,8 +287,8 @@ ifdef RISCV
 	MK_CXXFLAGS += -march=rv64gcv -mabi=lp64d
 
 else ifdef LOONGARCH
-	MK_CFLAGS   += -march=loongarch64 -mabi=lp64d
-	MK_CXXFLAGS += -march=loongarch64 -mabi=lp64d
+	MK_CFLAGS   += -march=loongarch64 -mabi=lp64d -mlasx
+	MK_CXXFLAGS += -march=loongarch64 -mabi=lp64d -mlasx
 
 else
 ifeq ($(UNAME_M),$(filter $(UNAME_M),x86_64 i686 amd64))

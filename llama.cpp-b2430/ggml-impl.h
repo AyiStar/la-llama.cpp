@@ -101,6 +101,15 @@ typedef uint16_t ggml_fp16_internal_t;
 #include <riscv_vector.h>
 #endif
 
+#if defined(__loongarch64)
+#if defined(__loongarch_asx)
+#include <lasxintrin.h>
+#endif
+#if defined(__loongarch_sx)
+#include <lsxintrin.h>
+#endif
+#endif
+
 #ifdef __F16C__
 
 #ifdef _MSC_VER
