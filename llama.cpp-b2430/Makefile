@@ -291,10 +291,6 @@ ifdef RISCV
 	MK_CFLAGS   += -march=rv64gcv -mabi=lp64d
 	MK_CXXFLAGS += -march=rv64gcv -mabi=lp64d
 
-else ifdef LOONGARCH
-	MK_CFLAGS   += -march=loongarch64 -mabi=lp64d -mlasx
-	MK_CXXFLAGS += -march=loongarch64 -mabi=lp64d -mlasx
-
 else
 ifeq ($(UNAME_M),$(filter $(UNAME_M),x86_64 i686 amd64))
 	ifdef DISABLE_SIMD
@@ -373,6 +369,11 @@ ifneq ($(filter ppc64le%,$(UNAME_M)),)
 	MK_CFLAGS   += -mcpu=powerpc64le
 	MK_CXXFLAGS += -mcpu=powerpc64le
 	CUDA_POWER_ARCH = 1
+endif
+
+ifneq ($(filter loongarch64%,$(UNAME_M)),)
+	MK_CFLAGS   += -mlasx
+	MK_CXXFLAGS += -mlasx
 endif
 
 endif
