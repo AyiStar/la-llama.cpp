@@ -28,7 +28,7 @@ for quant_type in ['Q4_0', 'Q4_K_S', 'Q4_K_M']:
     hf_hub_download(
         repo_id="TheBloke/Llama-2-7B-GGUF",
         filename=f"llama-2-7b.{quant_type}.gguf",
-        local_dir="/home/loongson/llama_models/Llama-2-7B-GGUF",
+        local_dir="/home/ayistar/llama_models/Llama-2-7B-GGUF",
         local_dir_use_symlinks=False,
         resume_download=True,
     )

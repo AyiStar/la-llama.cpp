@@ -31,6 +31,8 @@ lcov-report/
 gcovr-report/
 
 build*
+!scripts/build-info.sh
+!scripts/build-info.cmake
 cmake-build-*
 out/
 tmp/
