@@ -1,7 +1,9 @@
 #include <stdint.h>
 #include <assert.h>
 #include <stdio.h>
+#if defined(__loongarch_asx)
 #include <lasxintrin.h>
+#endif
 
 int32_t arr[] = {
     1, 2, 3, 4, 5, 6, 7, 8,

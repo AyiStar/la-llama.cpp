@@ -21823,7 +21823,7 @@ int ggml_cpu_has_matmul_int8(void) {
 }
 
 int ggml_cpu_has_lasx(void) {
-#if defined(__loongson_asx)
+#if defined(__loongarch_asx)
     return 1;
 #else
     return 0;

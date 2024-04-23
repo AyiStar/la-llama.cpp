@@ -1,2 +1,5 @@
 .vscode/
 build/
+a.out
+*.data
+
