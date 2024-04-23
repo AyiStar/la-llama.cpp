@@ -372,8 +372,14 @@ ifneq ($(filter ppc64le%,$(UNAME_M)),)
 endif
 
 ifneq ($(filter loongarch64%,$(UNAME_M)),)
+	ifdef DISABLE_SIMD
+	MK_CFLAGS   += -mno-lasx
+	MK_CXXFLAGS += -mno-lasx
+
+	else
 	MK_CFLAGS   += -mlasx
 	MK_CXXFLAGS += -mlasx
+endif
 endif
 
 endif
