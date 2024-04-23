@@ -585,7 +585,7 @@ static __m256 __lasx_xvreplfr2vr_s(float val)
 static inline __m256i ____m256i(__m128i in)
 {
     __m256i out = __lasx_xvldi(0);
-    asm volatile (
+    __asm__ volatile (
         ".irp i," __ALL_REGS                "\n\t"
         " .ifc %[out], " XREGS_PREFIX"\\i    \n\t"
         "  .irp j," __ALL_REGS              "\n\t"
@@ -603,7 +603,7 @@ static inline __m256i ____m256i(__m128i in)
 static inline __m256i lasx_set_q(__m128i inhi, __m128i inlo)
 {
     __m256i out;
-    asm volatile (
+    __asm__ volatile (
         ".irp i," __ALL_REGS                "\n\t"
         " .ifc %[hi], " VREGS_PREFIX "\\i    \n\t"
         "  .irp j," __ALL_REGS              "\n\t"
@@ -633,7 +633,7 @@ static inline __m256i lasx_set_q(__m128i inhi, __m128i inlo)
 static inline __m128i lasx_extracti128_lo(__m256i in)
 {
     __m128i out;
-    asm volatile (
+    __asm__ volatile (
         ".ifnc %[out], %[in]                 \n\t"
         ".irp i," __ALL_REGS                "\n\t"
         " .ifc %[out], " VREGS_PREFIX "\\i   \n\t"
@@ -653,7 +653,7 @@ static inline __m128i lasx_extracti128_lo(__m256i in)
 static inline __m128i lasx_extracti128_hi(__m256i in)
 {
     __m128i out;
-    asm volatile (
+    __asm__ volatile (
         ".irp i," __ALL_REGS                "\n\t"
         " .ifc %[out], " VREGS_PREFIX "\\i   \n\t"
         "  .irp j," __ALL_REGS              "\n\t"
@@ -944,21 +944,15 @@ static inline __m256i bytes_from_bits_32(const uint8_t * x) {
 // The output vector contains 32 bytes, each one in [ 0 .. 15 ] interval
 static inline __m256i bytes_from_nibbles_32(const uint8_t * rsi)
 {
-    const __m128i tmp = __lsx_vld((const __m128i *)rsi, 0);
-    __m128i tmp2 = __lsx_vsrli_h(tmp, 4);
-    __m128i lowMask = __lsx_vreplgr2vr_b(0xf);
-    __m128i tmpl = __lsx_vand_v(tmp, lowMask);
-    __m128i tmph = __lsx_vand_v(tmp2, lowMask);
-    return MM256_SET_M128I(tmph, tmpl);
+    const __m128i lo = __lsx_vld((const __m128i *)rsi, 0);
+    __m128i hi = __lsx_vsrli_h(lo, 4);
+    return __lasx_xvandi_b(MM256_SET_M128I(hi, lo), 0xf);
 }
 
 // add int16_t pairwise and return as float vector
 static inline __m256 sum_i16_pairs_float(const __m256i x) {
-    const __m256i ones = __lasx_xvreplgr2vr_h(1);
-
-    __m256i zero256 = __lasx_xvldi(0);
-    const __m256i tmp1 = __lasx_xvmaddwev_w_h(zero256, ones, x);
-    const __m256i summed_pairs = __lasx_xvmaddwod_w_h(tmp1, ones, x);
+    __m256i v = __lasx_xvpackod_h(x, x);
+    __m256i summed_pairs = __lasx_xvaddwev_w_h(x, v);
     return __lasx_xvffint_s_w(summed_pairs);
 }
 
