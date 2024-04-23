@@ -49,6 +49,15 @@
 #include <riscv_vector.h>
 #endif
 
+#if defined(__loongarch64)
+#if defined(__loongarch_asx)
+#include <lasxintrin.h>
+#endif
+#if defined(__loongarch_sx)
+#include <lsxintrin.h>
+#endif
+#endif
+
 #undef MIN
 #undef MAX
 
@@ -3968,6 +3977,31 @@ void ggml_vec_dot_q4_0_q8_0(int n, float * restrict s, size_t bs, const void * r
     }
 
     *s = sumf;
+// https://github.com/ggerganov/llama.cpp/pull/6454
+#elif defined(__loongarch_asx)
+    // Initialize accumulator with zeros
+    __m256 acc = (__m256)__lasx_xvldi(0);
+
+    // Main loop
+    for (int i = 0; i < nb; ++i) {
+        /* Compute combined scale for the block */
+        const __m256 d = __lasx_xvreplfr2vr_s( GGML_FP16_TO_FP32(x[i].d) * GGML_FP16_TO_FP32(y[i].d) );
+
+        __m256i qx = bytes_from_nibbles_32(x[i].qs);
+
+        // Now we have a vector with bytes in [ 0 .. 15 ] interval. Offset them into [ -8 .. +7 ] interval.
+        const __m256i off = __lasx_xvreplgr2vr_b( 8 );
+        qx = __lasx_xvsub_b( qx, off );
+
+        __m256i qy = __lasx_xvld((const __m256i *)y[i].qs, 0);
+
+        const __m256 q = mul_sum_i8_pairs_float(qx, qy);
+
+        /* Multiply q with scale and accumulate */
+        acc = __lasx_xvfmadd_s( d, q, acc );
+    }
+
+    *s = hsum_float_8(acc);
 #else
     // scalar
     float sumf = 0.0;
