@@ -4666,6 +4666,37 @@ void ggml_vec_dot_q4_1_q8_1(int n, float * restrict s, size_t bs, const void * r
     }
 
     *s = sumf;
+// https://github.com/ggerganov/llama.cpp/pull/6454
+#elif defined(__loongarch_asx)
+    // Initialize accumulator with zeros
+    __m256 acc = (__m256)__lasx_xvldi(0);
+
+    float summs = 0;
+
+    // Main loop
+    for (int i = 0; i < nb; ++i) {
+        const float d0 = GGML_FP16_TO_FP32(x[i].d);
+        const float d1 = GGML_FP16_TO_FP32(y[i].d);
+
+        summs += GGML_FP16_TO_FP32(x[i].m) * GGML_FP16_TO_FP32(y[i].s);
+
+        const __m256 d0v = __lasx_xvreplfr2vr_s( d0 ); //FIXME
+        const __m256 d1v = __lasx_xvreplfr2vr_s( d1 );
+
+        // Compute combined scales
+        const __m256 d0d1 = __lasx_xvfmul_s( d0v, d1v );
+
+        // Load 16 bytes, and unpack 4 bit fields into bytes, making 32 bytes
+        const __m256i qx = bytes_from_nibbles_32(x[i].qs);
+        const __m256i qy = __lasx_xvld( (const __m256i *)y[i].qs, 0);
+
+        const __m256 xy = mul_sum_us8_pairs_float(qx, qy);
+
+        // Accumulate d0*d1*x*y
+        acc = __lasx_xvfmadd_s( d0d1, xy, acc );
+    }
+
+    *s = hsum_float_8(acc) + summs;
 #else
     // scalar
     float sumf = 0.0;
