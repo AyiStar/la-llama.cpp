@@ -108,6 +108,9 @@ MK_CPPFLAGS  = -I. -Icommon
 MK_CFLAGS    = -std=c11   -fPIC
 MK_CXXFLAGS  = -std=c++11 -fPIC
 MK_NVCCFLAGS = -std=c++11
+ifdef LA_LLAMA
+LA_LLAMA_FLAGS = -DLA_LLAMA
+endif
 
 # flags for profiling
 ifdef DISABLE_SIMD
@@ -610,7 +613,7 @@ GF_CC := $(CC)
 include scripts/get-flags.mk
 
 # combine build flags with cmdline overrides
-override CPPFLAGS  := $(MK_CPPFLAGS) $(CPPFLAGS)
+override CPPFLAGS  := $(MK_CPPFLAGS) $(CPPFLAGS) $(LA_LLAMA_FLAGS)
 override CFLAGS    := $(CPPFLAGS) $(MK_CFLAGS) $(GF_CFLAGS) $(CFLAGS)
 BASE_CXXFLAGS      := $(MK_CXXFLAGS) $(CXXFLAGS)
 override CXXFLAGS  := $(BASE_CXXFLAGS) $(HOST_CXXFLAGS) $(GF_CXXFLAGS) $(CPPFLAGS)
@@ -856,7 +859,7 @@ build-info.o: common/build-info.cpp
 
 tests: $(TEST_TARGETS)
 
-benchmark-matmult: examples/benchmark/benchmark-matmult.cpp build-info.o ggml.o $(OBJS)
+benchmark-matmult: examples/benchmark/benchmark-matmult.cpp build-info.o ggml.o llama.o $(OBJS)
 	$(CXX) $(CXXFLAGS) -c $< -o $(call GET_OBJ_FILE, $<)
 	$(CXX) $(CXXFLAGS) $(filter-out %.h $<,$^) $(call GET_OBJ_FILE, $<) -o $@ $(LDFLAGS)
 

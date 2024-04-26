@@ -1,4 +1,5 @@
 #include "common.h"
+#include "llama.h"
 #include "ggml.h"
 
 #include <locale.h>
@@ -100,6 +101,11 @@ int main(int argc, char ** argv)  {
     }
 
     print_build_info();
+    // print system information
+    {
+        LOG_TEE("\n");
+        LOG_TEE("%s\n", llama_print_system_info());
+    }
     printf("Starting Test\n");
 
     // create the ggml context
@@ -166,6 +172,9 @@ int main(int argc, char ** argv)  {
     struct ggml_tensor * m2 = ggml_new_tensor_2d(ctx, GGML_TYPE_F32, sizex, sizez);
     ggml_set_f32(m2, 2.0f);
 
+    const double correct_sum_m11xm2 = (sizex * (1.0f * 2.0f)) * (sizey * sizez);
+    printf("Theoretical sum of m11xm2 = %6.2f\n", correct_sum_m11xm2);
+
     printf("\n------ Test 1 - Matrix Mult via F32 code\n");
     // printf("Creating new tensor m11xm2\n");
     struct ggml_tensor * m11xm2 = ggml_mul_mat(ctx, m11, m2);
@@ -225,6 +234,7 @@ int main(int argc, char ** argv)  {
 
     // Let's use the F32 result from above as a reference for the quantized multiplication
     float sum_of_F32_reference = tensor_sum_elements(gf->nodes[0]);
+    assert (std::abs(sum_of_F32_reference - correct_sum_m11xm2) < 1e-6);
 
     printf("Iteration;NThreads; SizeX; SizeY; SizeZ; Required_FLOPS; Elapsed_u_Seconds; gigaFLOPS\n");
     printf("=====================================================================================\n");

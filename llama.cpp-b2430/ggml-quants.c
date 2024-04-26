@@ -553,7 +553,7 @@ static const uint64_t table_b2b_1[1 << 8] = { B8(10, 00) }; // (!b) << 4
 #endif
 
 // https://github.com/ggerganov/llama.cpp/pull/6454/
-#if defined(__loongarch_asx)
+#if defined(LA_LLAMA) && defined(__loongarch_asx)
 
 typedef union
 {
@@ -4424,7 +4424,7 @@ void ggml_vec_dot_q4_0_q8_0(int n, float * restrict s, size_t bs, const void * r
 
     *s = sumf;
 // https://github.com/ggerganov/llama.cpp/pull/6454
-#elif defined(__loongarch_asx)
+#elif defined(LA_LLAMA) && defined(__loongarch_asx)
     // Initialize accumulator with zeros
     __m256 acc = (__m256)__lasx_xvldi(0);
 
@@ -4667,7 +4667,7 @@ void ggml_vec_dot_q4_1_q8_1(int n, float * restrict s, size_t bs, const void * r
 
     *s = sumf;
 // https://github.com/ggerganov/llama.cpp/pull/6454
-#elif defined(__loongarch_asx)
+#elif defined(LA_LLAMA) || defined(__loongarch_asx)
     // Initialize accumulator with zeros
     __m256 acc = (__m256)__lasx_xvldi(0);
 
