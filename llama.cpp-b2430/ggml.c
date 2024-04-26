@@ -10729,6 +10729,9 @@ static bool ggml_compute_forward_mul_mat_use_blas(struct ggml_tensor * dst) {
 #endif
 
 #if defined(LA_LLAMA)
+#if !defined(TILE_BLOCK_SIZE)
+#define TILE_BLOCK_SIZE 1
+#endif
 // Re-implementation of matrix matrix multiplication in la-llama.cpp project
 static void ggml_compute_forward_mul_mat(
         const struct ggml_compute_params * params,
@@ -10841,19 +10844,19 @@ static void ggml_compute_forward_mul_mat(
     assert(ne13 % ne03 == 0);
 
     // block-tiling attempt
-    const int64_t blck_0 = 16;
-    const int64_t blck_1 = 16;
+    const int64_t blck_sz = TILE_BLOCK_SIZE;
 
     // dot kernels can handle 1 row and col at a time, but mmla kernels can process 2 rows and cols
     int64_t nrc = vec_dot_num_rows;
     // with loongarch nrc is always 1
     assert (nrc == 1);
+    UNUSED(nrc);
 
     const size_t src1_col_stride = src1_cont || src1->type != vec_dot_type ? row_size : nb11;
 
-    for (int64_t iir1 = ir110; iir1 < ir111; iir1 += blck_1) {  // row of src1
-        for (int64_t iir0 = ir010; iir0 < ir011; iir0 += blck_0) {  // row of src0
-            for (int64_t ir1 = iir1; ir1 < iir1 + blck_1 && ir1 < ir111; ir1++) {
+    for (int64_t iir1 = ir110; iir1 < ir111; iir1 += blck_sz) {  // row of src1
+        for (int64_t iir0 = ir010; iir0 < ir011; iir0 += blck_sz) {  // row of src0
+            for (int64_t ir1 = iir1; ir1 < iir1 + blck_sz && ir1 < ir111; ir1++) {
                 const int64_t i13 = (ir1/(ne12*ne1));
                 const int64_t i12 = (ir1 - i13*ne12*ne1)/ne1;
                 const int64_t i11 = (ir1 - i13*ne12*ne1 - i12*ne1);
@@ -10882,7 +10885,7 @@ static void ggml_compute_forward_mul_mat(
                 //    vec_dot(ne00, &dst_col[ir0], src0_row + ir0*nb01, src1_col);
                 //}
 
-                for (int64_t ir0 = iir0; ir0 < iir0 + blck_0 && ir0 < ir011; ir0++) {
+                for (int64_t ir0 = iir0; ir0 < iir0 + blck_sz && ir0 < ir011; ir0++) {
                     vec_dot(ne00, &dst_col[ir0 - iir0], 0, src0_row + ir0*nb01, 0, src1_col, 0, 1);
                 }
                 

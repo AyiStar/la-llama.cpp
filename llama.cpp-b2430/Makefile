@@ -110,6 +110,13 @@ MK_CXXFLAGS  = -std=c++11 -fPIC
 MK_NVCCFLAGS = -std=c++11
 ifdef LA_LLAMA
 LA_LLAMA_FLAGS = -DLA_LLAMA
+$(info LA_LLAMA: LA_LLAMA is set)
+ifdef TILE_BLOCK_SIZE
+LA_LLAMA_FLAGS += -DTILE_BLOCK_SIZE=$(TILE_BLOCK_SIZE)
+$(info LA_LLAMA: TILE_BLOCK_SIZE is set to $(TILE_BLOCK_SIZE))
+else
+$(info LA_LLAMA: TILE_BLOCK_SIZE is default to 1)
+endif
 endif
 
 # flags for profiling
