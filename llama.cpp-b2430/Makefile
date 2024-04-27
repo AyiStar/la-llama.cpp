@@ -108,16 +108,6 @@ MK_CPPFLAGS  = -I. -Icommon
 MK_CFLAGS    = -std=c11   -fPIC
 MK_CXXFLAGS  = -std=c++11 -fPIC
 MK_NVCCFLAGS = -std=c++11
-ifdef LA_LLAMA
-LA_LLAMA_FLAGS = -DLA_LLAMA
-$(info LA_LLAMA: LA_LLAMA is set)
-ifdef TILE_BLOCK_SIZE
-LA_LLAMA_FLAGS += -DTILE_BLOCK_SIZE=$(TILE_BLOCK_SIZE)
-$(info LA_LLAMA: TILE_BLOCK_SIZE is set to $(TILE_BLOCK_SIZE))
-else
-$(info LA_LLAMA: TILE_BLOCK_SIZE is default to 1)
-endif
-endif
 
 # flags for profiling
 ifdef DISABLE_SIMD
@@ -620,7 +610,7 @@ GF_CC := $(CC)
 include scripts/get-flags.mk
 
 # combine build flags with cmdline overrides
-override CPPFLAGS  := $(MK_CPPFLAGS) $(CPPFLAGS) $(LA_LLAMA_FLAGS)
+override CPPFLAGS  := $(MK_CPPFLAGS) $(CPPFLAGS)
 override CFLAGS    := $(CPPFLAGS) $(MK_CFLAGS) $(GF_CFLAGS) $(CFLAGS)
 BASE_CXXFLAGS      := $(MK_CXXFLAGS) $(CXXFLAGS)
 override CXXFLAGS  := $(BASE_CXXFLAGS) $(HOST_CXXFLAGS) $(GF_CXXFLAGS) $(CPPFLAGS)
