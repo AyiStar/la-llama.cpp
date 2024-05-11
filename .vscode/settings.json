@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "ggml-impl.h": "c",
+        "ggml-quants.h": "c",
+        "lasxintrin.h": "c"
+    },
+    
+}

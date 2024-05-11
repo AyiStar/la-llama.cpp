@@ -1,4 +1,3 @@
-.vscode/
 build/
 a.out
 *.data
@@ -26,5 +25,8 @@ a.out
 .venv
 .clang-tidy
 .vs/
-.vscode/
 .idea/
+
+.vscode/**/*
+!.vscode/settings.json
+!.vscode/c_cpp_properties.json

@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${default}",
+                "${workspaceFolder}/llama.cpp-b2430/",
+                "${workspaceFolder}/src/"
+            ],
+            "defines": [
+                "LA_LLAMA=1"
+            ],
+            "cStandard": "c17",
+            "cppStandard": "c++11",
+            "intelliSenseMode": "linux-clang-x64",
+            "compilerArgs": [
+                "-mlasx"
+            ]
+        }
+    ],
+    "version": 4
+}
