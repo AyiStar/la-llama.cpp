@@ -10857,7 +10857,7 @@ static void ggml_compute_forward_mul_mat(
 
 #ifdef LA_LLAMA
     if (params->type == GGML_TASK_TYPE_COMPUTE && lamm_can_mul_mat(src0, src1, dst)) {
-        lamm_mul_mat();
+        lamm_mul_mat(src0, src1, dst, params->wdata, params->wsize);
         return;
     }
 #endif
