@@ -1,25 +1,41 @@
 #include "loongarch_matmul.h"
 
 #include <array>
+#include <cassert>
+
 
 namespace{
-struct Mat {
-    const void* data;
+struct Matrix {
+    void* data;
+    ggml_type type;
     int row;
     int col;
-    int ld;
-    ggml_type type;
+    int64_t ld;
 };
 
 // the real gemm function
 void gemm(
-    const Mat& A,
-    const Mat& B,
-    Mat& C,
+    const Matrix& A,
+    const Matrix& B,
+    const Matrix& C,
     int ith,
     int nth
 ) {
+    assert(A.type == GGML_TYPE_F32 && B.type == A.type && C.type == A.type);
+    float *a = (float*)(A.data), *b = (float*)(B.data), *c = (float*)(C.data);
+    int64_t lda = A.ld, ldb = B.ld, ldc = C.ld;
 
+    // naive implementation
+    int M = C.row, N = C.col, K = A.col;
+    assert(M == A.row && N == B.col && K == B.row);
+    for (int i = 0; i < M; i++) {
+        for (int j = 0; j < N; j++) {
+            c[j * lda + i] = 0;
+            for (int k = 0; k < K; k++) {
+                c[j * lda + i] += a[k * lda + i] * b[j * lda + k];
+            }
+        }
+    }
 }
 }
 
@@ -80,7 +96,7 @@ void lamm_mul_mat(
     const int64_t r2 = ne12/ne02;
     const int64_t r3 = ne13/ne03;
 
-    Mat A, B, C;
+    Matrix A, B, C;
 
     A.type = src0->type;
     A.row = ne01;
@@ -94,12 +110,11 @@ void lamm_mul_mat(
     C.row = ne01;
     C.col = ne11;
 
-
     for (int64_t i13 = 0; i13 < ne13; i13++) {
         for (int64_t i12 = 0; i12 < ne12; i12++) {
-            A.data = (const char *)src0->data + i12/r2*nb02 + i13/r3*nb03;
+            A.data = (char *)src0->data + i12/r2*nb02 + i13/r3*nb03;
             A.ld = nb01/ggml_type_size(src0->type);
-            B.data = (const char *)src1->data + i12*nb12 + i13*nb13;
+            B.data = (char *)src1->data + i12*nb12 + i13*nb13;
             B.ld = nb11/ggml_type_size(src1->type);
             C.data = (char *)dst->data + i12*nb2 + i13*nb3;
             C.ld = nb1/ggml_type_size(dst->type);
