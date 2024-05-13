@@ -26,6 +26,7 @@ a.out
 .clang-tidy
 .vs/
 .idea/
+draft/
 
 .vscode/**/*
 !.vscode/settings.json
