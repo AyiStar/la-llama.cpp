@@ -2,7 +2,11 @@
     "files.associations": {
         "ggml-impl.h": "c",
         "ggml-quants.h": "c",
-        "lasxintrin.h": "c"
+        "lasxintrin.h": "c",
+        "array": "cpp",
+        "string": "cpp",
+        "string_view": "cpp",
+        "vector": "cpp"
     },
     
 }

@@ -41,9 +41,9 @@ void gemm(
     assert(M == A.row && N == B.col && K == B.row);
     for (int i = 0; i < M; i++) {
         for (int j = 0; j < N; j++) {
-            c[j * lda + i] = 0;
+            c[j * ldc + i] = 0;
             for (int k = 0; k < K; k++) {
-                c[j * lda + i] += a[k * lda + i] * b[j * lda + k];
+                c[j * ldc + i] += a[i * lda + k] * b[j * ldb + k];
             }
         }
     }
@@ -113,23 +113,23 @@ void lamm_mul_mat(
     A.type = src0->type;
     A.row = ne01;
     A.col = ne00/ggml_blck_size(src0->type);
+    A.ld = nb01/ggml_type_size(src0->type);
     
     B.type = src1->type;
     B.row = ne00/ggml_blck_size(src0->type);
     B.col = ne11;
+    B.ld = nb11/ggml_type_size(src1->type);
 
     C.type = dst->type;
     C.row = ne01;
     C.col = ne11;
+    C.ld = nb1/ggml_type_size(dst->type);
 
     for (int64_t i13 = 0; i13 < ne13; i13++) {
         for (int64_t i12 = 0; i12 < ne12; i12++) {
             A.data = (char *)src0->data + i12/r2*nb02 + i13/r3*nb03;
-            A.ld = nb01/ggml_type_size(src0->type);
             B.data = (char *)src1->data + i12*nb12 + i13*nb13;
-            B.ld = nb11/ggml_type_size(src1->type);
             C.data = (char *)dst->data + i12*nb2 + i13*nb3;
-            C.ld = nb1/ggml_type_size(dst->type);
             gemm(A, B, C, params->ith, params->nth);
         }
     }

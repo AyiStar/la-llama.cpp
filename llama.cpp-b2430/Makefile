@@ -610,7 +610,7 @@ ifdef LLAMA_LOONGARCH
 LOONGARCH_DIR = ../src
 CPPFLAGS += -I$(LOONGARCH_DIR)
 CPPFLAGS += -DLA_LLAMA
-OBJS += loongarch_matmul.o
+OBJS += $(LOONGARCH_DIR)/loongarch_matmul.o
 
 $(LOONGARCH_DIR)/loongarch_matmul.o: $(LOONGARCH_DIR)/loongarch_matmul.cpp $(LOONGARCH_DIR)/loongarch_matmul.h
 	$(CXX) $(CXXFLAGS) -c $< -o $@ 

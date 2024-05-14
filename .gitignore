@@ -27,6 +27,7 @@ a.out
 .vs/
 .idea/
 draft/
+core
 
 .vscode/**/*
 !.vscode/settings.json

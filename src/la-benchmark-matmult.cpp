@@ -194,6 +194,12 @@ int main(int argc, char ** argv)  {
 
     TENSOR_DUMP(gf->nodes[0]);
 
+    float sum_of_F32_reference = tensor_sum_elements(gf->nodes[0]);
+    assert (std::abs(sum_of_F32_reference - correct_sum_m11xm2) < 1e-6);
+
+    // TODO currently only test F32 code
+    return 0;
+
     printf("\n------ Test 2 - Matrix Mult via %s code\n", ggml_type_name(qtype));
 
     int32_t nelements = sizex*sizey;
@@ -231,10 +237,7 @@ int main(int argc, char ** argv)  {
     long long int flops_per_matrix = flops_per_dot_product * dimx * dimz; ;
     printf("Matrix Multiplication of (%i,%i,%i) x (%i,%i,%i) - about %6.2f gFLOPS\n\n", sizex, sizey, 1, sizex, sizez, 1, 1.0f*flops_per_matrix / 1000 / 1000 / 1000);
 
-
-    // Let's use the F32 result from above as a reference for the quantized multiplication
-    float sum_of_F32_reference = tensor_sum_elements(gf->nodes[0]);
-    assert (std::abs(sum_of_F32_reference - correct_sum_m11xm2) < 1e-6);
+    // TODO check correctness
 
     printf("Iteration;NThreads; SizeX; SizeY; SizeZ; Required_FLOPS; Elapsed_u_Seconds; gigaFLOPS\n");
     printf("=====================================================================================\n");
