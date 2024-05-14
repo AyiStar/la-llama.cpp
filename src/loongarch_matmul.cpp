@@ -30,7 +30,7 @@ void gemm(
 ) {
     assert(A.type == GGML_TYPE_F32 && B.type == A.type && C.type == A.type);
     float *a = (float*)(A.data), *b = (float*)(B.data), *c = (float*)(C.data);
-    int64_t lda = A.ld, ldb = B.ld, ldc = C.ld;
+    int64_t lda{A.ld}, ldb{B.ld}, ldc{C.ld};
 
     (void)ith;
     (void)nth;
@@ -56,6 +56,10 @@ bool lamm_can_mul_mat(
     const struct ggml_compute_params * params,
     const struct ggml_tensor* dst
 ) {
+	if (params->type != GGML_TASK_TYPE_COMPUTE) {
+		return false;
+	}
+
     auto src0 = dst->src[0];
     auto src1 = dst->src[1];
 
@@ -89,7 +93,6 @@ bool lamm_can_mul_mat(
         return false;
     }
 
-
     return true;
 }
 
@@ -100,8 +103,8 @@ void lamm_mul_mat(
 
     const struct ggml_tensor * src0 = dst->src[0];
     const struct ggml_tensor * src1 = dst->src[1];
-    enum ggml_type const vec_dot_type = ggml_internal_get_type_traits(src0->type).vec_dot_type;
-    const bool use_wdata = (src1->type != vec_dot_type);
+    // enum ggml_type const vec_dot_type = ggml_internal_get_type_traits(src0->type).vec_dot_type;
+    // const bool use_wdata = (src1->type != vec_dot_type);
 
     GGML_TENSOR_BINARY_OP_LOCALS
 

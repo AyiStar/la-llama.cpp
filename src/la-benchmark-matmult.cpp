@@ -69,6 +69,21 @@ static void print_usage(int /*argc*/, char ** argv, struct benchmark_params_stru
     fprintf(stderr, "\n");
 }
 
+static void do_test(
+    int test_no,
+    int sizex,
+    int sizey,
+    int sizez,
+    ggml_type type,
+    struct ggml_tensor *m11,
+    struct ggml_tensor *m12,
+    struct ggml_tensor *m2,
+    struct ggml_context *ctx,
+    struct benchmark_params_struct benchmark_params,
+    std::vector<uint8_t>& work_buffer,
+    const float correct
+);
+
 int main(int argc, char ** argv)  {
     struct benchmark_params_struct benchmark_params;
 
@@ -132,7 +147,7 @@ int main(int argc, char ** argv)  {
     //printf("Memsize required = %i\n", sizex*sizex);
 
     // TODO: perform the bench for all types or for a user specified type
-    const ggml_type qtype = GGML_TYPE_Q4_1;
+    const ggml_type qtype = GGML_TYPE_Q4_0;
 
     size_t ctx_size = 0;
     ctx_size += ggml_row_size(GGML_TYPE_F32, sizex*sizey);
@@ -197,17 +212,35 @@ int main(int argc, char ** argv)  {
     float sum_of_F32_reference = tensor_sum_elements(gf->nodes[0]);
     assert (std::abs(sum_of_F32_reference - correct_sum_m11xm2) < 1e-6);
 
-    // TODO currently only test F32 code
-    return 0;
+    // test on Q4_0
+    do_test(2, sizex, sizey, sizez, qtype, m11, m12, m2, ctx, benchmark_params, work_buffer, correct_sum_m11xm2);
+}
 
-    printf("\n------ Test 2 - Matrix Mult via %s code\n", ggml_type_name(qtype));
+
+void do_test(
+    int test_no,
+    int sizex,
+    int sizey,
+    int sizez,
+    ggml_type type,
+    struct ggml_tensor *m11,
+    struct ggml_tensor *m12,
+    struct ggml_tensor *m2,
+    struct ggml_context *ctx,
+    struct benchmark_params_struct benchmark_params,
+    std::vector<uint8_t>& work_buffer,
+    const float correct
+) {
+
+    printf("\n------ Test %d - Matrix Mult via %s code\n", test_no, ggml_type_name(type));
 
     int32_t nelements = sizex*sizey;
 
     // Set up a the benchmark matrices
     // printf("Creating new tensor q11 & Running quantize\n");
-    struct ggml_tensor * q11 = ggml_new_tensor_2d(ctx, qtype, sizex, sizey);
-    ggml_quantize_chunk(qtype, (const float *) m11->data, q11->data, 0, nelements/m11->ne[0], m11->ne[0], nullptr);
+    struct ggml_tensor * q11 = ggml_new_tensor_2d(ctx, type, sizex, sizey);
+    // TODO if need quantization
+    ggml_quantize_chunk(type, (const float *) m11->data, q11->data, 0, nelements/m11->ne[0], m11->ne[0], nullptr);
 
     // Set up a the compute graph
     // printf("Creating new tensor q31\n");
@@ -219,8 +252,8 @@ int main(int argc, char ** argv)  {
 
     // Set up a second graph computation to make sure we override the CPU cache lines
     // printf("Creating new tensor q12 & Running quantize\n");
-    struct ggml_tensor * q12 = ggml_new_tensor_2d(ctx, qtype, sizex, sizey);
-    ggml_quantize_chunk(qtype, (const float *) m12->data, q12->data, 0, nelements/m12->ne[0], m12->ne[0], nullptr);
+    struct ggml_tensor * q12 = ggml_new_tensor_2d(ctx, type, sizex, sizey);
+    ggml_quantize_chunk(type, (const float *) m12->data, q12->data, 0, nelements/m12->ne[0], m12->ne[0], nullptr);
 
     // printf("Creating new tensor q32\n");
     struct ggml_tensor * q32 = ggml_mul_mat(ctx, q12, m2);
@@ -266,12 +299,12 @@ int main(int argc, char ** argv)  {
         // Check that the matrix multiplication result is in the right ballpark
         // We cannot use the exact value from the F32 multiplication because the quantizuation will be slightly different
         float sum_of_Q4_result = tensor_sum_elements(gf31->nodes[0]);
-        float delta = std::abs(sum_of_Q4_result - sum_of_F32_reference);
-        float allowed_delta = (sum_of_F32_reference) / 1000 / 1000; //  Let's accept an epsilon of 10^-6
+        float delta = std::abs(sum_of_Q4_result - correct);
+        float allowed_delta = (correct) / 1000 / 1000; //  Let's accept an epsilon of 10^-6
 
         if (delta > allowed_delta)  {
             printf("\nABORT - ERROR in Matrix Multiplication result - expected %6.2f, got %6.2f (delta %6.2f > allowed_delta %6.2f)\n",
-                sum_of_F32_reference,
+                correct,
                 sum_of_Q4_result,
                 delta,
                 allowed_delta
