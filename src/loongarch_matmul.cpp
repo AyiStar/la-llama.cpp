@@ -1,7 +1,14 @@
+#pragma GCC diagnostic ignored "-Wpedantic"
+
 #include "loongarch_matmul.h"
+
+#include "ggml.h"
+#include "ggml-impl.h"
+#include "ggml-quants.h"
 
 #include <array>
 #include <cassert>
+#include <iostream>
 
 
 namespace{
@@ -25,7 +32,11 @@ void gemm(
     float *a = (float*)(A.data), *b = (float*)(B.data), *c = (float*)(C.data);
     int64_t lda = A.ld, ldb = B.ld, ldc = C.ld;
 
+    (void)ith;
+    (void)nth;
+
     // naive implementation
+    std::cout << "naive implementation called" << std::endl;
     int M = C.row, N = C.col, K = A.col;
     assert(M == A.row && N == B.col && K == B.row);
     for (int i = 0; i < M; i++) {
@@ -42,10 +53,11 @@ void gemm(
 // check if the gemm is suitable to be accelerated
 // we assume that the basic assertions have been done
 bool lamm_can_mul_mat(
-    const struct ggml_tensor* src0,
-    const struct ggml_tensor* src1,
+    const struct ggml_compute_params * params,
     const struct ggml_tensor* dst
 ) {
+    auto src0 = dst->src[0];
+    auto src1 = dst->src[1];
 
     // contiguous
     const bool src1_cont = ggml_is_contiguous(src1);

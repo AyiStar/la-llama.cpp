@@ -1,25 +1,21 @@
-#include "ggml.h"
-#include "ggml-impl.h"
-#include "ggml-quants.h"
+#ifndef LOONGARCH_MATMUL_H
+#define LOONGARCH_MATMUL_H
 
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 bool lamm_can_mul_mat(
-    const struct ggml_tensor* src0,
-    const struct ggml_tensor* src1,
+    const struct ggml_compute_params * params,
     const struct ggml_tensor* dst
 );
 
 
 void lamm_mul_mat(
-    struct ggml_tensor* src0,
-    struct ggml_tensor* src1,
-    struct ggml_tensor* dst,
-    void * wdata,
-    size_t wsize
+    const struct ggml_compute_params * params,
+    struct ggml_tensor * dst
 );
 
 
@@ -27,3 +23,5 @@ void lamm_mul_mat(
 #ifdef __cplusplus
 }
 #endif
+
+#endif // LOONGARCH_MATMUL_H

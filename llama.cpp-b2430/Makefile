@@ -606,6 +606,16 @@ ggml-mpi.o: ggml-mpi.c ggml-mpi.h
 	$(CC) $(CFLAGS) -c $< -o $@
 endif # LLAMA_MPI
 
+ifdef LLAMA_LOONGARCH
+LOONGARCH_DIR = ../src
+CPPFLAGS += -I$(LOONGARCH_DIR)
+CPPFLAGS += -DLA_LLAMA
+OBJS += loongarch_matmul.o
+
+$(LOONGARCH_DIR)/loongarch_matmul.o: $(LOONGARCH_DIR)/loongarch_matmul.cpp $(LOONGARCH_DIR)/loongarch_matmul.h
+	$(CXX) $(CXXFLAGS) -c $< -o $@ 
+endif
+
 GF_CC := $(CC)
 include scripts/get-flags.mk
 
@@ -862,6 +872,13 @@ benchmark-matmult: examples/benchmark/benchmark-matmult.cpp build-info.o ggml.o 
 
 run-benchmark-matmult: benchmark-matmult
 	./$@
+
+ifdef LLAMA_LOONGARCH
+.PHONY: la-benchmark-matmult
+la-benchmark-matmult: $(LOONGARCH_DIR)/la-benchmark-matmult.cpp build-info.o ggml.o llama.o $(OBJS)
+	$(CXX) $(CXXFLAGS) -c $< -o $(call GET_OBJ_FILE, $<)
+	$(CXX) $(CXXFLAGS) $(filter-out %.h $<,$^) $(call GET_OBJ_FILE, $<) -o $(LOONGARCH_DIR)/$@ $(LDFLAGS)
+endif
 
 .PHONY: run-benchmark-matmult swift
 
