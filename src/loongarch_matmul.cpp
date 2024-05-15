@@ -77,8 +77,8 @@ bool lamm_can_mul_mat(
     }
     static const enum ggml_type supported_types[][2] = {
         {GGML_TYPE_F32, GGML_TYPE_F32},
-        {GGML_TYPE_Q4_0, GGML_TYPE_Q8_0},
-        {GGML_TYPE_Q8_0, GGML_TYPE_Q8_0},
+        // {GGML_TYPE_Q4_0, GGML_TYPE_Q8_0},
+        // {GGML_TYPE_Q8_0, GGML_TYPE_Q8_0},
     };
     const int num_supported_types = sizeof(supported_types) / sizeof(supported_types[0]);
     enum ggml_type type0 = src0->type, type1 = (src1_wdata ? vec_dot_type : src1->type);
