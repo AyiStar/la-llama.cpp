@@ -8,5 +8,6 @@
         "string_view": "cpp",
         "vector": "cpp"
     },
+    "C_Cpp.default.compilerPath": "/usr/bin/g++",
     
 }

@@ -11,7 +11,8 @@
 #include <iostream>
 
 
-namespace{
+namespace impl {
+
 struct Matrix {
     void* data;
     ggml_type type;
@@ -20,8 +21,21 @@ struct Matrix {
     int64_t ld;
 };
 
+LA_NOINLINE void gemm(const Matrix& A, const Matrix& B, const Matrix& C, int ith, int nth);
+LA_INLINE void gemm_naive(const Matrix& A, const Matrix& B, const Matrix& C, int ith, int nth);
+
 // the real gemm function
 void gemm(
+    const Matrix& A,
+    const Matrix& B,
+    const Matrix& C,
+    int ith,
+    int nth
+) {
+    gemm_naive(A, B, C, ith, nth);
+}
+
+LA_INLINE void gemm_naive(
     const Matrix& A,
     const Matrix& B,
     const Matrix& C,
@@ -32,14 +46,19 @@ void gemm(
     float *a = (float*)(A.data), *b = (float*)(B.data), *c = (float*)(C.data);
     int64_t lda{A.ld}, ldb{B.ld}, ldc{C.ld};
 
-    (void)ith;
-    (void)nth;
-
     // naive implementation
     std::cout << "naive implementation called" << std::endl;
     int M = C.row, N = C.col, K = A.col;
     assert(M == A.row && N == B.col && K == B.row);
-    for (int i = 0; i < M; i++) {
+    assert(nth > 0);
+    // split thread-local job by M
+    int job_size = M / nth;
+    int job_start = ith * job_size;
+    int job_end = job_start + job_size;
+    if (job_end > M) {
+        job_end = M;
+    }
+    for (int i = job_start; i < job_end; i++) {
         for (int j = 0; j < N; j++) {
             c[j * ldc + i] = 0;
             for (int k = 0; k < K; k++) {
@@ -48,7 +67,8 @@ void gemm(
         }
     }
 }
-}
+
+} // namespace impl
 
 // check if the gemm is suitable to be accelerated
 // we assume that the basic assertions have been done
@@ -111,7 +131,7 @@ void lamm_mul_mat(
     const int64_t r2 = ne12/ne02;
     const int64_t r3 = ne13/ne03;
 
-    Matrix A, B, C;
+    impl::Matrix A, B, C;
 
     A.type = src0->type;
     A.row = ne01;
@@ -133,7 +153,7 @@ void lamm_mul_mat(
             A.data = (char *)src0->data + i12/r2*nb02 + i13/r3*nb03;
             B.data = (char *)src1->data + i12*nb12 + i13*nb13;
             C.data = (char *)dst->data + i12*nb2 + i13*nb3;
-            gemm(A, B, C, params->ith, params->nth);
+            impl::gemm(A, B, C, params->ith, params->nth);
         }
     }
 }

@@ -3,6 +3,14 @@
 
 #include <stdbool.h>
 
+#ifdef _MSC_VER
+#define LA_INLINE __forceinline
+#define LA_NOINLINE __declspec(noinline)
+#else
+#define LA_INLINE inline __attribute__((always_inline))
+#define LA_NOINLINE __attribute__((__noinline__))
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif

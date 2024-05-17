@@ -8,14 +8,12 @@
                 "${workspaceFolder}/src/"
             ],
             "defines": [
-                "LA_LLAMA=1"
+                "LA_LLAMA=1",
+                "__loongarch_asx"
             ],
             "cStandard": "c17",
             "cppStandard": "c++17",
-            "intelliSenseMode": "linux-clang-x64",
-            "compilerArgs": [
-                "-mlasx"
-            ]
+            "intelliSenseMode": "${default}"
         }
     ],
     "version": 4
