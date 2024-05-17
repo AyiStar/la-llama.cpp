@@ -10,13 +10,20 @@
 #include <cassert>
 #include <iostream>
 
+
+//// plaform
 #if defined(__loongarch_asx)
 #include <lasxintrin.h>
 #elif defined(__AVX2__)
 #include <immintrin.h>
 #endif
 
-
+//// opt level control
+#if defined(LAMM_OPT_LEVEL)
+constexpr int kOptLevel = LAMM_OPT_LEVEL;
+#else
+static_assert(false);
+#endif
 
 
 // abstraction for loongarch_asx SIMD intrinsics
@@ -131,6 +138,22 @@ struct Matrix {
 LA_NOINLINE void gemm(const Matrix& A, const Matrix& B, const Matrix& C, int ith, int nth);
 LA_INLINE void gemm_naive(const Matrix& A, const Matrix& B, const Matrix& C, int ith, int nth);
 LA_INLINE void gemm_simd(const Matrix& A, const Matrix& B, const Matrix& C, int ith, int nth);
+LA_INLINE void gemm_block_simd(const Matrix& A, const Matrix& B, const Matrix& C, int ith, int nth);
+
+template<int B0, int B1>
+LA_INLINE void gemm_block_kernel(
+    float* a, float* b, float* c,
+    int64_t lda, int64_t ldb, int64_t ldc,
+    int i, int j, int k
+) {
+    assert(false);  // not implement by default
+}
+
+template<>
+LA_INLINE void gemm_block_kernel<4, 4>(
+    float* a, float* b, float* c,
+    int64_t lda, int64_t ldb, int64_t ldc,
+    int i, int j, int k);
 
 // the real gemm function
 void gemm(
@@ -140,7 +163,13 @@ void gemm(
     int ith,
     int nth
 ) {
-    gemm_simd(A, B, C, ith, nth);
+    if constexpr (kOptLevel == 1) {
+        gemm_naive(A, B, C, ith, nth);
+    } else if constexpr (kOptLevel == 2) {
+        gemm_simd(A, B, C, ith, nth);
+    } else {
+        gemm_block_simd(A, B, C, ith, nth);
+    }
 }
 
 LA_INLINE void gemm_naive(
@@ -217,6 +246,110 @@ LA_INLINE void gemm_simd(
     }
 }
 
+LA_INLINE void gemm_block_simd(
+    const Matrix& A,
+    const Matrix& B,
+    const Matrix& C,
+    int ith,
+    int nth
+) {
+    assert(A.type == GGML_TYPE_F32 && B.type == A.type && C.type == A.type);
+    float *a = (float*)(A.data), *b = (float*)(B.data), *c = (float*)(C.data);
+    int64_t lda{A.ld}, ldb{B.ld}, ldc{C.ld};
+
+    // block and simd implementation
+    if (ith == 0) {
+        std::cout << "Block SIMD implementation called" << std::endl;
+    }
+    int M = C.row, N = C.col, K = A.col;
+    assert(M == A.row && N == B.col && K == B.row);
+    assert(nth > 0);
+    // split thread-local job by M
+    int job_size = M / nth;
+    int job_start = ith * job_size;
+    int job_end = job_start + job_size;
+    if (job_end > M) {
+        job_end = M;
+    }
+
+    constexpr int kBlockSize = 4;
+    assert ((job_end - job_start) % kBlockSize == 0);
+    assert ((K % simd::kF32PerVec) == 0);
+    for (int i = job_start; i < job_end; i += kBlockSize) {
+        for (int j = 0; j < N; j += kBlockSize) {
+            gemm_block_kernel<kBlockSize, kBlockSize>(
+                a, b, c, lda, ldb, ldc, i, j, K
+            );
+        }
+    }
+}
+
+
+template<>
+LA_INLINE void gemm_block_kernel<4, 4>(
+    float* a, float* b, float* c,
+    int64_t lda, int64_t ldb, int64_t ldc,
+    int i, int j, int k
+) {
+    using namespace simd;
+    vreg_t vc00 = {0}, vc01 = {0}, vc02 = {0}, vc03 = {0};
+    vreg_t vc10 = {0}, vc11 = {0}, vc12 = {0}, vc13 = {0};
+    vreg_t vc20 = {0}, vc21 = {0}, vc22 = {0}, vc23 = {0};
+    vreg_t vc30 = {0}, vc31 = {0}, vc32 = {0}, vc33 = {0};
+    vreg_t vb0 =  {0}, vb1 =  {0}, vb2 =  {0}, vb3 =  {0};
+    vreg_t va  =  {0};
+
+    for (int l = 0; l < k; l += kF32PerVec) {
+        vb0 = load(b + ldb * (j + 0) + l);
+        vb1 = load(b + ldb * (j + 1) + l);
+        vb2 = load(b + ldb * (j + 2) + l);
+        vb3 = load(b + ldb * (j + 3) + l);
+        
+        va = load(a + lda * (i + 0) + l);
+        vc00 = madd(va, vb0, vc00);
+        vc01 = madd(va, vb1, vc01);
+        vc02 = madd(va, vb2, vc02);
+        vc03 = madd(va, vb3, vc03);
+        
+        va = load(a + lda * (i + 1) + l);
+        vc10 = madd(va, vb0, vc10);
+        vc11 = madd(va, vb1, vc11);
+        vc12 = madd(va, vb2, vc12);
+        vc13 = madd(va, vb3, vc13);
+        
+        va = load(a + lda * (i + 2) + l);
+        vc20 = madd(va, vb0, vc20);
+        vc21 = madd(va, vb1, vc21);
+        vc22 = madd(va, vb2, vc22);
+        vc23 = madd(va, vb3, vc23);
+
+        va = load(a + lda * (i + 3) + l);
+        vc30 = madd(va, vb0, vc30);
+        vc31 = madd(va, vb1, vc31);
+        vc32 = madd(va, vb2, vc32);
+        vc33 = madd(va, vb3, vc33);
+    }
+
+    c[ldc * (j + 0) + (i + 0)] = reduce_sum(vc00);
+    c[ldc * (j + 0) + (i + 1)] = reduce_sum(vc10);
+    c[ldc * (j + 0) + (i + 2)] = reduce_sum(vc20);
+    c[ldc * (j + 0) + (i + 3)] = reduce_sum(vc30);
+    c[ldc * (j + 1) + (i + 0)] = reduce_sum(vc01);
+    c[ldc * (j + 1) + (i + 1)] = reduce_sum(vc11);
+    c[ldc * (j + 1) + (i + 2)] = reduce_sum(vc21);
+    c[ldc * (j + 1) + (i + 3)] = reduce_sum(vc31);
+    c[ldc * (j + 2) + (i + 0)] = reduce_sum(vc02);
+    c[ldc * (j + 2) + (i + 1)] = reduce_sum(vc12);
+    c[ldc * (j + 2) + (i + 2)] = reduce_sum(vc22);
+    c[ldc * (j + 2) + (i + 3)] = reduce_sum(vc32);
+    c[ldc * (j + 3) + (i + 0)] = reduce_sum(vc03);
+    c[ldc * (j + 3) + (i + 1)] = reduce_sum(vc13);
+    c[ldc * (j + 3) + (i + 2)] = reduce_sum(vc23);
+    c[ldc * (j + 3) + (i + 3)] = reduce_sum(vc33);
+
+
+}
+
 } // namespace impl
 
 // check if the gemm is suitable to be accelerated
@@ -225,6 +358,9 @@ bool lamm_can_mul_mat(
     const struct ggml_compute_params * params,
     const struct ggml_tensor* dst
 ) {
+    if (kOptLevel == 0) {
+        return false;
+    }
 	if (params->type != GGML_TASK_TYPE_COMPUTE) {
 		return false;
 	}

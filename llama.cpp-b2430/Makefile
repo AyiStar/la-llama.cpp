@@ -613,7 +613,7 @@ CPPFLAGS += -DLA_LLAMA
 OBJS += $(LOONGARCH_DIR)/loongarch_matmul.o
 
 $(LOONGARCH_DIR)/loongarch_matmul.o: $(LOONGARCH_DIR)/loongarch_matmul.cpp $(LOONGARCH_DIR)/loongarch_matmul.h
-	$(CXX) $(CXXFLAGS) -std=c++17 -c $< -o $@ 
+	$(CXX) $(CXXFLAGS) -std=c++17 $(LAMM_FLAGS) -c $< -o $@ 
 endif
 
 GF_CC := $(CC)

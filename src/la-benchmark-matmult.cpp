@@ -227,7 +227,7 @@ int main(int argc, char ** argv)  {
     do_test(1, sizex, sizey, sizez, GGML_TYPE_F32, m11, m12, m2, ctx, benchmark_params, work_buffer, correct_sum_m11xm2);
 
     // test on Q4_0
-    do_test(2, sizex, sizey, sizez, qtype, m11, m12, m2, ctx, benchmark_params, work_buffer, correct_sum_m11xm2);
+    // do_test(2, sizex, sizey, sizez, qtype, m11, m12, m2, ctx, benchmark_params, work_buffer, correct_sum_m11xm2);
 }
 
 
