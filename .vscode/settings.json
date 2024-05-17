@@ -1,12 +1,15 @@
 {
     "files.associations": {
+        "*.cpp": "cpp",
         "ggml-impl.h": "c",
         "ggml-quants.h": "c",
         "lasxintrin.h": "c",
         "array": "cpp",
         "string": "cpp",
         "string_view": "cpp",
-        "vector": "cpp"
+        "vector": "cpp",
+        "random": "cpp",
+        "queue": "cpp"
     },
     "C_Cpp.default.compilerPath": "/usr/bin/g++",
     

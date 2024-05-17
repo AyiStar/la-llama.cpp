@@ -9,7 +9,7 @@
             ],
             "defines": [
                 "LA_LLAMA=1",
-                "__loongarch_asx"
+                "__AVX2__",
             ],
             "cStandard": "c17",
             "cppStandard": "c++17",

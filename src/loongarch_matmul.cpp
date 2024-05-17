@@ -10,6 +10,113 @@
 #include <cassert>
 #include <iostream>
 
+#if defined(__loongarch_asx)
+#include <lasxintrin.h>
+#elif defined(__AVX2__)
+#include <immintrin.h>
+#endif
+
+
+
+
+// abstraction for loongarch_asx SIMD intrinsics
+namespace simd {
+
+    enum class SIMD_ISA {
+        AVX2,
+        LASX,
+        NONE
+    };
+
+    #if defined(__loongarch_asx)
+    constexpr SIMD_ISA kISA = SIMD_ISA::LASX; 
+    #elif defined(__AVX2__)
+    constexpr SIMD_ISA kISA = SIMD_ISA::AVX2;
+    #else
+    constexpr SIMD_ISA kISA = SIMD_ISA::NONE;
+    #endif
+
+    static_assert(kISA != SIMD_ISA::NONE);
+    
+    constexpr int kNumVecReg = 32;
+    constexpr int kVecWidth = 256;
+    constexpr int kF32PerVec = kVecWidth / 32;
+
+    using vreg_t = __m256;
+
+#if defined(__loongarch_asx)
+    // x + y: f32
+    LA_INLINE vreg_t add(vreg_t x, vreg_t y) {
+        return __lasx_xvfadd_s(x, y);
+    }
+
+    // x * y + z: f32
+    LA_INLINE vreg_t madd(vreg_t x, vreg_t y, vreg_t z){
+        return __lasx_xvfmadd_s(x, y, z);
+    }
+
+    // x - y: f32
+    LA_INLINE vreg_t sub(vreg_t x, vreg_t y) {
+        return __lasx_xvfsub_s(x, y);
+    }
+
+    // x * y: f32
+    LA_INLINE vreg_t mul(vreg_t x, vreg_t y) {
+        return __lasx_xvfmul_s(x, y);
+    }
+
+    // vector -> f32
+    LA_INLINE float reduce_sum(vreg_t x) {
+        return 0;  // TODO
+    }
+
+    // load from float*
+    LA_INLINE vreg_t load(const float* p) {
+        return __lasx_xvld(p, 0);
+    }
+
+#elif defined(__AVX2__)
+
+    // x + y: f32
+    LA_INLINE vreg_t add(vreg_t x, vreg_t y) {
+        return _mm256_add_ps(x, y);
+    }
+
+    // x * y + z: f32
+    LA_INLINE vreg_t madd(vreg_t x, vreg_t y, vreg_t z){
+        return _mm256_fmadd_ps(x, y, z);
+    }
+
+    // x - y: f32
+    LA_INLINE vreg_t sub(vreg_t x, vreg_t y) {
+        return _mm256_sub_ps(x, y);
+    }
+
+    // x * y: f32
+    LA_INLINE vreg_t mul(vreg_t x, vreg_t y) {
+        return _mm256_mul_ps(x, y);
+    }
+
+    // vector -> f32
+    LA_INLINE float reduce_sum(__m128 x) {
+        x = _mm_add_ps(x, _mm_movehl_ps(x, x));
+        x = _mm_add_ss(x, _mm_movehdup_ps(x));
+        return _mm_cvtss_f32(x);
+    }
+    
+    LA_INLINE float reduce_sum(vreg_t x) {
+        return reduce_sum(_mm_add_ps(_mm256_extractf128_ps(x, 1),
+            _mm256_castps256_ps128(x)));
+    }
+
+    // load from float*
+    LA_INLINE vreg_t load(const float* p) {
+        return _mm256_loadu_ps(p);
+    }
+#endif
+
+} // namespace simd
+
 
 namespace impl {
 
@@ -23,6 +130,7 @@ struct Matrix {
 
 LA_NOINLINE void gemm(const Matrix& A, const Matrix& B, const Matrix& C, int ith, int nth);
 LA_INLINE void gemm_naive(const Matrix& A, const Matrix& B, const Matrix& C, int ith, int nth);
+LA_INLINE void gemm_simd(const Matrix& A, const Matrix& B, const Matrix& C, int ith, int nth);
 
 // the real gemm function
 void gemm(
@@ -32,7 +140,7 @@ void gemm(
     int ith,
     int nth
 ) {
-    gemm_naive(A, B, C, ith, nth);
+    gemm_simd(A, B, C, ith, nth);
 }
 
 LA_INLINE void gemm_naive(
@@ -47,7 +155,9 @@ LA_INLINE void gemm_naive(
     int64_t lda{A.ld}, ldb{B.ld}, ldc{C.ld};
 
     // naive implementation
-    std::cout << "naive implementation called" << std::endl;
+    if (ith == 0) {
+        std::cout << "naive implementation called" << std::endl;
+    }
     int M = C.row, N = C.col, K = A.col;
     assert(M == A.row && N == B.col && K == B.row);
     assert(nth > 0);
@@ -64,6 +174,45 @@ LA_INLINE void gemm_naive(
             for (int k = 0; k < K; k++) {
                 c[j * ldc + i] += a[i * lda + k] * b[j * ldb + k];
             }
+        }
+    }
+}
+
+LA_INLINE void gemm_simd(
+    const Matrix& A,
+    const Matrix& B,
+    const Matrix& C,
+    int ith,
+    int nth
+) {
+    assert(A.type == GGML_TYPE_F32 && B.type == A.type && C.type == A.type);
+    float *a = (float*)(A.data), *b = (float*)(B.data), *c = (float*)(C.data);
+    int64_t lda{A.ld}, ldb{B.ld}, ldc{C.ld};
+
+    // simd implementation
+    if (ith == 0) {
+        std::cout << "SIMD implementation called" << std::endl;
+    }
+    int M = C.row, N = C.col, K = A.col;
+    assert(M == A.row && N == B.col && K == B.row);
+    assert(K % simd::kF32PerVec == 0);
+    assert(nth > 0);
+    // split thread-local job by M
+    int job_size = M / nth;
+    int job_start = ith * job_size;
+    int job_end = job_start + job_size;
+    if (job_end > M) {
+        job_end = M;
+    }
+    for (int i = job_start; i < job_end; i++) {
+        for (int j = 0; j < N; j++) {
+            simd::vreg_t vc = {0}, va = {0}, vb = {0};
+            for (int k = 0; k < K; k += simd::kF32PerVec) {
+                va = simd::load(a + i * lda + k);
+                vb = simd::load(b + j * ldb + k);
+                vc = simd::madd(va, vb, vc);
+            }
+            c[j * ldc + i] = simd::reduce_sum(vc);
         }
     }
 }
