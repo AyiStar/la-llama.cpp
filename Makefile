@@ -27,5 +27,5 @@ export LAMM_FLAGS
 
 mm_bench:
 	@echo "Compiling the project with LLAMA_LOONGARCH=$(LLAMA_LOONGARCH), LAMM_OPT_LEVEL=$(LAMM_OPT_LEVEL)" 
-	rm $(SRC_DIR)/loongarch_matmul.o
+	rm -f $(SRC_DIR)/loongarch_matmul.o
 	$(MAKE) -C $(LLAMA_CPP_DIR) la-benchmark-matmult $(MK_FORCE) -j8
