@@ -612,6 +612,9 @@ CPPFLAGS += -I$(LOONGARCH_DIR)
 CPPFLAGS += -DLA_LLAMA
 OBJS += $(LOONGARCH_DIR)/loongarch_matmul.o
 
+.PHONY: lamm
+lamm: $(LOONGARCH_DIR)/loongarch_matmul.o
+
 $(LOONGARCH_DIR)/loongarch_matmul.o: $(LOONGARCH_DIR)/loongarch_matmul.cpp $(LOONGARCH_DIR)/loongarch_matmul.h
 	$(CXX) $(CXXFLAGS) -std=c++17 $(LAMM_FLAGS) -c $< -o $@ 
 endif
