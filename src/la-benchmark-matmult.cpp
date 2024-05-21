@@ -144,6 +144,10 @@ int main(int argc, char ** argv)  {
     const int sizey = 4096;
     const int sizex = 11008;
     const int sizez = 128;
+
+    // const int sizey = 1;
+    // const int sizex = 128;
+    // const int sizez = 1;
 #else
     /* Working - let's increase size */
     const int sizey = 1;
@@ -220,7 +224,7 @@ int main(int argc, char ** argv)  {
 
     TENSOR_DUMP(gf->nodes[0]);
 
-    float sum_of_F32_reference = tensor_sum_elements(gf->nodes[0]);
+    [[maybe_unused]] float sum_of_F32_reference = tensor_sum_elements(gf->nodes[0]);
     assert (std::abs(sum_of_F32_reference - correct_sum_m11xm2) < 1e-6);
 
     // test on F32

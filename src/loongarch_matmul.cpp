@@ -264,39 +264,39 @@ LA_INLINE void gemm_block_simd(
         job_end = M;
     }
 
-    constexpr int kBlockSize = 4;
+    constexpr int kBlockSize = 5;
     // assert ((job_end - job_start) % kBlockSize == 0);
     assert ((K % simd::kF32PerVec) == 0);
 
     // first use KxK block
-    // int L0 = job_end - job_start, L1 = N;
-    // int ii = (L0 / kBlockSize * kBlockSize) + job_start;
-    // int jj = (L1 / kBlockSize * kBlockSize);
+    int L0 = job_end - job_start, L1 = N;
+    int ii = (L0 / kBlockSize * kBlockSize) + job_start;
+    int jj = (L1 / kBlockSize * kBlockSize);
 
-    for (int i = job_start; i < job_end; i += kBlockSize) {
-        for (int j = 0; j < N; j += kBlockSize) {
+    for (int i = job_start; i < ii; i += kBlockSize) {
+        for (int j = 0; j < jj; j += kBlockSize) {
             gemm_block_kernel<kBlockSize, kBlockSize>(
                 a, b, c, lda, ldb, ldc, i, j, K
             );
         }
-        // for (int j = jj; j < N; j++) {
-        //     gemm_block_kernel<kBlockSize, 1>(
-        //         a, b, c, lda, ldb, ldc, i, j, K
-        //     );
-        // }
+        for (int j = jj; j < N; j++) {
+            gemm_block_kernel<kBlockSize, 1>(
+                a, b, c, lda, ldb, ldc, i, j, K
+            );
+        }
     }
-    // for (int i = ii; i < job_end; i++) {
-    //     for (int j = 0; j < N; j += kBlockSize) {
-    //         gemm_block_kernel<1, kBlockSize>(
-    //             a, b, c, lda, ldb, ldc, i, j, K
-    //         );
-    //     }
-    //     for (int j = jj; j < N; j++) {
-    //         gemm_block_kernel<1, 1>(
-    //             a, b, c, lda, ldb, ldc, i, j, K
-    //         );
-    //     }
-    // }
+    for (int i = ii; i < job_end; i++) {
+        for (int j = 0; j < jj; j += kBlockSize) {
+            gemm_block_kernel<1, kBlockSize>(
+                a, b, c, lda, ldb, ldc, i, j, K
+            );
+        }
+        for (int j = jj; j < N; j++) {
+            gemm_block_kernel<1, 1>(
+                a, b, c, lda, ldb, ldc, i, j, K
+            );
+        }
+    }
 }
 
 
@@ -311,13 +311,15 @@ LA_INLINE void gemm_block_kernel(
     static_assert(B0 > 0 && B0 <= 5);
     static_assert(B1 > 0 && B1 <= 5);
 
+    // std::cout << "calc (" << i << ", " << j << ") with kernel <" << B0 << ", " << B1 << ">" << std::endl;
+
     using namespace simd;
-    vreg_t vc00 = {0}, vc01 = {0}, vc02 = {0}, vc03 = {0}, vc04 = {0};
-    vreg_t vc10 = {0}, vc11 = {0}, vc12 = {0}, vc13 = {0}, vc14 = {0};
-    vreg_t vc20 = {0}, vc21 = {0}, vc22 = {0}, vc23 = {0}, vc24 = {0};
-    vreg_t vc30 = {0}, vc31 = {0}, vc32 = {0}, vc33 = {0}, vc34 = {0};
-    vreg_t vc40 = {0}, vc41 = {0}, vc42 = {0}, vc43 = {0}, vc44 = {0};
-    vreg_t vb0 =  {0}, vb1 =  {0}, vb2 =  {0}, vb3 =  {0}, vb4  = {0};
+    [[maybe_unused]] vreg_t vc00 = {0}, vc01 = {0}, vc02 = {0}, vc03 = {0}, vc04 = {0};
+    [[maybe_unused]] vreg_t vc10 = {0}, vc11 = {0}, vc12 = {0}, vc13 = {0}, vc14 = {0};
+    [[maybe_unused]] vreg_t vc20 = {0}, vc21 = {0}, vc22 = {0}, vc23 = {0}, vc24 = {0};
+    [[maybe_unused]] vreg_t vc30 = {0}, vc31 = {0}, vc32 = {0}, vc33 = {0}, vc34 = {0};
+    [[maybe_unused]] vreg_t vc40 = {0}, vc41 = {0}, vc42 = {0}, vc43 = {0}, vc44 = {0};
+    [[maybe_unused]] vreg_t vb0 =  {0}, vb1 =  {0}, vb2 =  {0}, vb3 =  {0}, vb4  = {0};
     vreg_t va  =  {0};
 
     for (int l = 0; l < k; l += kF32PerVec) {
@@ -337,14 +339,13 @@ LA_INLINE void gemm_block_kernel(
             if constexpr (B1 > 4) { vc04 = madd(va, vb4, vc04); }
         }
 
-
         if constexpr (B0 > 1) {
             va = load(a + lda * (i + 1) + l);
             if constexpr (B1 > 0) { vc10 = madd(va, vb0, vc10); }
             if constexpr (B1 > 1) { vc11 = madd(va, vb1, vc11); }
             if constexpr (B1 > 2) { vc12 = madd(va, vb2, vc12); }
             if constexpr (B1 > 3) { vc13 = madd(va, vb3, vc13); }
-            if constexpr (B1 > 4) { vc13 = madd(va, vb4, vc14); }
+            if constexpr (B1 > 4) { vc14 = madd(va, vb4, vc14); }
         }
 
         if constexpr (B0 > 2) {
