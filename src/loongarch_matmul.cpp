@@ -126,27 +126,26 @@ LA_INLINE void gemm_block_simd(const Matrix &A, const Matrix &B,
                                const Matrix &C, int ith, int nth);
 
 // the real gemm function
+template<ggml_type dtype>
 void gemm(const Matrix &A, const Matrix &B, const Matrix &C, int ith, int nth) {
   if constexpr (kOptLevel == 1) {
-    gemm_naive(A, B, C, ith, nth);
+    gemm_naive<dtype>(A, B, C, ith, nth);
   } else if constexpr (kOptLevel == 2) {
-    gemm_simd(A, B, C, ith, nth);
+    gemm_simd<dtype>(A, B, C, ith, nth);
   } else {
-    gemm_block_simd(A, B, C, ith, nth);
+    gemm_block_simd<dtype>(A, B, C, ith, nth);
   }
 }
 
+template<ggml_type dtype>
 LA_INLINE void gemm_naive(const Matrix &A, const Matrix &B, const Matrix &C,
                           int ith, int nth) {
-  assert(A.type == GGML_TYPE_F32 && B.type == A.type && C.type == A.type);
-  float *a = (float *)(A.data), *b = (float *)(B.data), *c = (float *)(C.data);
-  int64_t lda{A.ld}, ldb{B.ld}, ldc{C.ld};
-
-  // naive implementation
   if (ith == 0) {
     std::cout << "naive implementation called" << std::endl;
   }
+
   int M = C.row, N = C.col, K = A.col;
+  int64_t lda{A.ld}, ldb{B.ld}, ldc{C.ld};
   assert(M == A.row && N == B.col && K == B.row);
   assert(nth > 0);
   // split thread-local job by M
@@ -156,16 +155,40 @@ LA_INLINE void gemm_naive(const Matrix &A, const Matrix &B, const Matrix &C,
   if (job_end > M) {
     job_end = M;
   }
-  for (int i = job_start; i < job_end; i++) {
-    for (int j = 0; j < N; j++) {
-      c[j * ldc + i] = 0;
-      for (int k = 0; k < K; k++) {
-        c[j * ldc + i] += a[i * lda + k] * b[j * ldb + k];
+
+  assert(C.type == GGML_TYPE_F32);
+  if constexpr (dtype == GGML_TYPE_F32) {
+    assert(A.type == dtype && B.type == dtype);
+    float *a = (float *)(A.data), *b = (float *)(B.data), *c = (float *)(C.data);
+    for (int i = job_start; i < job_end; i++) {
+      for (int j = 0; j < N; j++) {
+        c[j * ldc + i] = 0;
+        for (int k = 0; k < K; k++) {
+          c[j * ldc + i] += a[i * lda + k] * b[j * ldb + k];
+        }
       }
     }
+  } else if constexpr (dtype == GGML_TYPE_Q4_1) {
+    assert(A.type == dtype && B.type == GGML_TYPE_Q8_1);
+    assert(K % QK8_1 == 0);
+    const int Kq = K / QK8_1;
+    block_q8_1 *a = (block_q8_1*)(A.data), *b = (block_q8_1*)(B.data), *c = (block_q8_1*)(C.data);
+    for (int i = job_start; i < job_end; i++) {
+      for (int j = 0; j < N; j++) {
+        c[j * ldc + i] = 0;
+        for (int k = 0; k < Kq; k++) {
+          int si = 0;
+          // TODO
+        }
+      }
+    }
+  } else constexpr {
+    static_assert(false);
   }
+  
 }
 
+template<ggml_type dtype>
 LA_INLINE void gemm_simd(const Matrix &A, const Matrix &B, const Matrix &C,
                          int ith, int nth) {
   assert(A.type == GGML_TYPE_F32 && B.type == A.type && C.type == A.type);
@@ -204,6 +227,7 @@ template <int B0, int B1>
 LA_INLINE void gemm_block_kernel(float *a, float *b, float *c, int64_t lda,
                                  int64_t ldb, int64_t ldc, int i, int j, int k);
 
+template <ggml_type dtype>
 LA_INLINE void gemm_block_simd(const Matrix &A, const Matrix &B,
                                const Matrix &C, int ith, int nth) {
   assert(A.type == GGML_TYPE_F32 && B.type == A.type && C.type == A.type);
@@ -505,13 +529,13 @@ bool lamm_can_mul_mat(const struct ggml_compute_params *params,
   }
 
   // what types do we support?
-  if (dst->type != GGML_TYPE_F32) {
+  if (dst->type != GGML_TYPE_F32 && dst->type != GGML_TYPE_Q8_1) {
     return false;
   }
   static const enum ggml_type supported_types[][2] = {
       {GGML_TYPE_F32, GGML_TYPE_F32},
-      // {GGML_TYPE_Q4_0, GGML_TYPE_Q8_0},
-      // {GGML_TYPE_Q8_0, GGML_TYPE_Q8_0},
+      {GGML_TYPE_Q4_1, GGML_TYPE_Q8_1},
+      {GGML_TYPE_Q8_1, GGML_TYPE_Q8_1},
   };
   const int num_supported_types =
       sizeof(supported_types) / sizeof(supported_types[0]);
