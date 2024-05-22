@@ -70,7 +70,7 @@ LA_INLINE float reduce_sum(vreg_t x) {
 }
 
 // load from float*
-LA_INLINE vreg_t load(const float *p) { return __lasx_xvld(p, 0); }
+LA_INLINE vreg_t load(const float *p) { return (vreg_t)__lasx_xvld(p, 0); }
 
 #elif defined(__AVX2__)
 
