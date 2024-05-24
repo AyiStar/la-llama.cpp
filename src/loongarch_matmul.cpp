@@ -116,12 +116,19 @@ struct Matrix {
   int64_t ld;
 };
 
+template<ggml_type dtype>
 LA_NOINLINE void gemm(const Matrix &A, const Matrix &B, const Matrix &C,
                       int ith, int nth);
+
+template<ggml_type dtype>
 LA_INLINE void gemm_naive(const Matrix &A, const Matrix &B, const Matrix &C,
                           int ith, int nth);
+
+template<ggml_type dtype>
 LA_INLINE void gemm_simd(const Matrix &A, const Matrix &B, const Matrix &C,
                          int ith, int nth);
+
+template<ggml_type dtype>
 LA_INLINE void gemm_block_simd(const Matrix &A, const Matrix &B,
                                const Matrix &C, int ith, int nth);
 
@@ -142,6 +149,7 @@ LA_INLINE void gemm_naive(const Matrix &A, const Matrix &B, const Matrix &C,
                           int ith, int nth) {
   if (ith == 0) {
     std::cout << "naive implementation called" << std::endl;
+    printf("A=[%d,%d], B=[%d,%d], C=[%d,%d]\n", A.row, A.col, B.row, B.col, C.row, C.col);
   }
 
   int M = C.row, N = C.col, K = A.col;
@@ -162,30 +170,41 @@ LA_INLINE void gemm_naive(const Matrix &A, const Matrix &B, const Matrix &C,
     float *a = (float *)(A.data), *b = (float *)(B.data), *c = (float *)(C.data);
     for (int i = job_start; i < job_end; i++) {
       for (int j = 0; j < N; j++) {
-        c[j * ldc + i] = 0;
+        float sum = 0;
         for (int k = 0; k < K; k++) {
-          c[j * ldc + i] += a[i * lda + k] * b[j * ldb + k];
+          sum += a[i * lda + k] * b[j * ldb + k];
         }
+        c[j * ldc + i] = sum;
       }
     }
-  } else if constexpr (dtype == GGML_TYPE_Q4_1) {
+    return;
+  }
+  else if constexpr (dtype == GGML_TYPE_Q4_1) {
     assert(A.type == dtype && B.type == GGML_TYPE_Q8_1);
-    assert(K % QK8_1 == 0);
-    const int Kq = K / QK8_1;
-    block_q8_1 *a = (block_q8_1*)(A.data), *b = (block_q8_1*)(B.data), *c = (block_q8_1*)(C.data);
+    constexpr int Q = QK8_1;
+    assert(K % Q == 0);
+    auto *a = (block_q4_1*)(A.data);
+    auto *b = (block_q8_1*)(B.data);
+    auto *c = (float*)(C.data);
     for (int i = job_start; i < job_end; i++) {
       for (int j = 0; j < N; j++) {
-        c[j * ldc + i] = 0;
-        for (int k = 0; k < Kq; k++) {
-          int si = 0;
-          // TODO
+        float sum = 0;
+        for (int k = 0; k < K; k++) {
+          const auto *aik = a + (i * lda + k);
+          const auto *bjk = b + (j * ldb + k);
+          int sumi = 0;
+          for (int h = 0; h < Q/2; h++) {
+            sumi += (aik->qs[h] & 0x0F) * (bjk->qs[h]);
+            sumi += (aik->qs[h] >>   4) * (bjk->qs[h + Q/2]);
+          }
+          sum += (GGML_FP16_TO_FP32(aik->d)*GGML_FP16_TO_FP32(bjk->d))*sumi + GGML_FP16_TO_FP32(aik->m) * GGML_FP16_TO_FP32(bjk->s);
         }
+        c[j * ldc + i] = sum;
       }
     }
-  } else constexpr {
-    static_assert(false);
+    return;
   }
-  
+  assert(false); // unreachable
 }
 
 template<ggml_type dtype>
@@ -529,13 +548,12 @@ bool lamm_can_mul_mat(const struct ggml_compute_params *params,
   }
 
   // what types do we support?
-  if (dst->type != GGML_TYPE_F32 && dst->type != GGML_TYPE_Q8_1) {
+  if (dst->type != GGML_TYPE_F32) {
     return false;
   }
   static const enum ggml_type supported_types[][2] = {
       {GGML_TYPE_F32, GGML_TYPE_F32},
       {GGML_TYPE_Q4_1, GGML_TYPE_Q8_1},
-      {GGML_TYPE_Q8_1, GGML_TYPE_Q8_1},
   };
   const int num_supported_types =
       sizeof(supported_types) / sizeof(supported_types[0]);
@@ -586,12 +604,23 @@ void lamm_mul_mat(const struct ggml_compute_params *params,
   C.col = ne11;
   C.ld = nb1 / ggml_type_size(dst->type);
 
+  enum ggml_type const vec_dot_type =
+      ggml_internal_get_type_traits(src0->type).vec_dot_type;
+  void* src1_data = (src1->type != vec_dot_type) ? params->wdata : src1->data;
+
+  decltype(impl::gemm<GGML_TYPE_F32>) *gemm_func = nullptr;
+  if (A.type == GGML_TYPE_F32) {
+    gemm_func = impl::gemm<GGML_TYPE_F32>;
+  } else if (A.type == GGML_TYPE_Q4_1) {
+    gemm_func = impl::gemm<GGML_TYPE_Q4_1>;
+  }
+
   for (int64_t i13 = 0; i13 < ne13; i13++) {
     for (int64_t i12 = 0; i12 < ne12; i12++) {
       A.data = (char *)src0->data + i12 / r2 * nb02 + i13 / r3 * nb03;
-      B.data = (char *)src1->data + i12 * nb12 + i13 * nb13;
+      B.data = (char *)src1_data + i12 * nb12 + i13 * nb13;
       C.data = (char *)dst->data + i12 * nb2 + i13 * nb3;
-      impl::gemm(A, B, C, params->ith, params->nth);
+      gemm_func(A, B, C, params->ith, params->nth);
     }
   }
 }

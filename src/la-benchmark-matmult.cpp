@@ -141,13 +141,13 @@ int main(int argc, char ** argv)  {
 
 #undef VERBOSE_DEBUGGING
 #ifndef VERBOSE_DEBUGGING
-    const int sizey = 4096;
-    const int sizex = 11008;
-    const int sizez = 128;
+    // const int sizey = 4096;
+    // const int sizex = 11008;
+    // const int sizez = 128;
 
-    // const int sizey = 1;
-    // const int sizex = 128;
-    // const int sizez = 1;
+    const int sizey = 1;
+    const int sizex = 128;
+    const int sizez = 1;
 #else
     /* Working - let's increase size */
     const int sizey = 1;
@@ -228,10 +228,10 @@ int main(int argc, char ** argv)  {
     assert (std::abs(sum_of_F32_reference - correct_sum_m11xm2) < 1e-6);
 
     // test on F32
-    do_test(1, sizex, sizey, sizez, GGML_TYPE_F32, m11, m12, m2, ctx, benchmark_params, work_buffer, correct_sum_m11xm2);
+    // do_test(1, sizex, sizey, sizez, GGML_TYPE_F32, m11, m12, m2, ctx, benchmark_params, work_buffer, correct_sum_m11xm2);
 
-    // test on Q4_0
-    // do_test(2, sizex, sizey, sizez, qtype, m11, m12, m2, ctx, benchmark_params, work_buffer, correct_sum_m11xm2);
+    // test on Q4_1
+    do_test(2, sizex, sizey, sizez, qtype, m11, m12, m2, ctx, benchmark_params, work_buffer, correct_sum_m11xm2);
 }
 
 

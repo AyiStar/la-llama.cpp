@@ -25,12 +25,12 @@ endif
 
 export LAMM_FLAGS
 
-$(SRC_DIR)/loongarch_matmul.o:
-	$(MAKE) -C $(LLAMA_CPP_DIR) lamm
-
 .PHONY: mm_bench
 mm_bench: $(SRC_DIR)/loongarch_matmul.o
 	$(MAKE) -C $(LLAMA_CPP_DIR) la-benchmark-matmult $(MK_FORCE) -j8
+
+$(SRC_DIR)/loongarch_matmul.o:
+	$(MAKE) -C $(LLAMA_CPP_DIR) lamm
 
 .PHONY: main
 main: $(SRC_DIR)/loongarch_matmul.o
