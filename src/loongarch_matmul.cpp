@@ -48,15 +48,54 @@ using ivreg_t = __m256i;  // integer vector register type
 
 #if defined(__loongarch_asx)
 
+#ifdef __clang__
+#define VREGS_PREFIX "$vr"
+#define XREGS_PREFIX "$xr"
+#else // GCC
+#define VREGS_PREFIX "$f"
+#define XREGS_PREFIX "$f"
+#endif
+#define __ALL_REGS "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31"
+
 typedef union
 {
     int32_t i;
     float f;
 } FloatInt;
 
-LA_INLINE vreg_t vset(const float f) {
+LA_INLINE vreg_t vset(const float val) {
   FloatInt fi_tmpval = {.f = val};
   return (__m256)__lasx_xvreplgr2vr_w(fi_tmpval.i);
+}
+
+LA_INLINE ivreg_t lasx_set_q(__m128i inhi, __m128i inlo)
+{
+    __m256i out;
+    __asm__ volatile (
+        ".irp i," __ALL_REGS                "\n\t"
+        " .ifc %[hi], " VREGS_PREFIX "\\i    \n\t"
+        "  .irp j," __ALL_REGS              "\n\t"
+        "   .ifc %[lo], " VREGS_PREFIX "\\j  \n\t"
+        "    xvpermi.q $xr\\i, $xr\\j, 0x20  \n\t"
+        "   .endif                           \n\t"
+        "  .endr                             \n\t"
+        " .endif                             \n\t"
+        ".endr                               \n\t"
+        ".ifnc %[out], %[hi]                 \n\t"
+        ".irp i," __ALL_REGS                "\n\t"
+        " .ifc %[out], " XREGS_PREFIX "\\i   \n\t"
+        "  .irp j," __ALL_REGS              "\n\t"
+        "   .ifc %[hi], " VREGS_PREFIX "\\j  \n\t"
+        "    xvori.b $xr\\i, $xr\\j, 0       \n\t"
+        "   .endif                           \n\t"
+        "  .endr                             \n\t"
+        " .endif                             \n\t"
+        ".endr                               \n\t"
+        ".endif                              \n\t"
+        : [out] "=f" (out), [hi] "+f" (inhi)
+        : [lo] "f" (inlo)
+    );
+    return out;
 }
 
 // x + y: f32
@@ -98,6 +137,14 @@ LA_INLINE vreg_t sum_i16_pairs_float(const ivreg_t x) {
     ivreg_t v = __lasx_xvpackod_h(x, x);
     ivreg_t summed_pairs = __lasx_xvaddwev_w_h(x, v);
     return __lasx_xvffint_s_w(summed_pairs);
+}
+
+LA_INLINE ivreg_t lasx_maddubs_h(ivreg_t a, ivreg_t b)
+{
+    __m256i tmp1, tmp2;
+    tmp1 = __lasx_xvmulwev_h_b(a, b);
+    tmp2 = __lasx_xvmulwod_h_b(a, b);
+    return __lasx_xvsadd_h(tmp1, tmp2);
 }
 
 LA_INLINE vreg_t mul_sum_us8_pairs_float(const ivreg_t ax, const ivreg_t sy) {
