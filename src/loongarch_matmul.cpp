@@ -47,6 +47,18 @@ using vreg_t = __m256;  // vector register type
 using ivreg_t = __m256i;  // integer vector register type
 
 #if defined(__loongarch_asx)
+
+typedef union
+{
+    int32_t i;
+    float f;
+} FloatInt;
+
+LA_INLINE vreg_t vset(const float f) {
+  FloatInt fi_tmpval = {.f = val};
+  return (__m256)__lasx_xvreplgr2vr_w(fi_tmpval.i);
+}
+
 // x + y: f32
 LA_INLINE vreg_t add(vreg_t x, vreg_t y) { return __lasx_xvfadd_s(x, y); }
 
@@ -72,22 +84,38 @@ LA_INLINE float reduce_sum(vreg_t x) {
 
 // load from float*
 LA_INLINE vreg_t load(const float *p) { return (vreg_t)__lasx_xvld(p, 0); }
+// load from quantized block
+LA_INLINE ivreg_t load_quants(const block_q4_1 *p) {
+  const __m128i lo = __lsx_vld((const __m128i *)(p->qs), 0);
+  __m128i hi = __lsx_vsrli_h(lo, 4);
+  return __lasx_xvandi_b(lasx_set_q(hi, lo), 0xf);
+}
+LA_INLINE ivreg_t load_quants(const block_q8_1 *p) {
+  return __lasx_xvld( (const __m256i *)(p->qs), 0);
+}
+
+LA_INLINE vreg_t sum_i16_pairs_float(const ivreg_t x) {
+    ivreg_t v = __lasx_xvpackod_h(x, x);
+    ivreg_t summed_pairs = __lasx_xvaddwev_w_h(x, v);
+    return __lasx_xvffint_s_w(summed_pairs);
+}
+
+LA_INLINE vreg_t mul_sum_us8_pairs_float(const ivreg_t ax, const ivreg_t sy) {
+    // Perform multiplication and create 16-bit values
+    const ivreg_t dot = lasx_maddubs_h(ax, sy);
+    return sum_i16_pairs_float(dot);
+}
 
 #elif defined(__AVX2__)
 
 LA_INLINE vreg_t vset(const float f) { return _mm256_set1_ps(f); }
 
-// x + y: f32/i8
+// x + y: f32
 LA_INLINE vreg_t add(vreg_t x, vreg_t y) { return _mm256_add_ps(x, y); }
-LA_INLINE ivreg_t add(ivreg_t x, ivreg_t y) { return _mm256_add_epi8(x, y); }
 
 // x * y + z: f32
 LA_INLINE vreg_t madd(vreg_t x, vreg_t y, vreg_t z) {
   return _mm256_fmadd_ps(x, y, z);
-}
-LA_INLINE ivreg_t madd(ivreg_t x, ivreg_t y, ivreg_t z) {
-  ivreg_t xy = _mm256_madd_epi16(_mm256_set1_epi16(1),_mm256_maddubs_epi16(x, y));
-  return _mm256_add_epi32(xy, z);
 }
 
 // x - y: f32
@@ -108,13 +136,9 @@ LA_INLINE float reduce_sum(vreg_t x) {
       _mm_add_ps(_mm256_extractf128_ps(x, 1), _mm256_castps256_ps128(x)));
 }
 
-LA_INLINE float vec_dot(ivreg_t x, ivreg_t y) {
-  ivreg_t xy = _mm256_madd_epi16(_mm256_set1_epi16(1),_mm256_maddubs_epi16(x, y));
-  return reduce_sum(_mm256_cvtepi32_ps(xy));
-}
-
 // load from float*
 LA_INLINE vreg_t load(const float *p) { return _mm256_loadu_ps(p); }
+
 // load from quantized block
 LA_INLINE ivreg_t load_quants(const block_q4_1 *p) {
   __m128i qs =  _mm_loadu_si128((const __m128i *)(p->qs)); // load squeezed 4-bit qs
@@ -131,23 +155,14 @@ LA_INLINE ivreg_t load_quants(const block_q8_1 *p) { return _mm256_loadu_si256((
 
 #define MM256_SET_M128I(a, b) _mm256_insertf128_si256(_mm256_castsi128_si256(b), (a), 1)
 
-// horizontally add 8 floats
-inline float hsum_float_8(const __m256 x) {
-    __m128 res = _mm256_extractf128_ps(x, 1);
-    res = _mm_add_ps(res, _mm256_castps256_ps128(x));
-    res = _mm_add_ps(res, _mm_movehl_ps(res, res));
-    res = _mm_add_ss(res, _mm_movehdup_ps(res));
-    return _mm_cvtss_f32(res);
-}
-
 // add int16_t pairwise and return as float vector
-inline __m256 sum_i16_pairs_float(const __m256i x) {
+inline vreg_t sum_i16_pairs_float(const ivreg_t x) {
     const __m256i ones = _mm256_set1_epi16(1);
     const __m256i summed_pairs = _mm256_madd_epi16(ones, x);
     return _mm256_cvtepi32_ps(summed_pairs);
 }
 
-inline __m256 mul_sum_us8_pairs_float(const __m256i ax, const __m256i sy) {
+inline vreg_t mul_sum_us8_pairs_float(const ivreg_t ax, const ivreg_t sy) {
     // Perform multiplication and create 16-bit values
     const __m256i dot = _mm256_maddubs_epi16(ax, sy);
     return sum_i16_pairs_float(dot);
