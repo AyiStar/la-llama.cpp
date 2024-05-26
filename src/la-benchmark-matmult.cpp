@@ -141,13 +141,13 @@ int main(int argc, char ** argv)  {
 
 #undef VERBOSE_DEBUGGING
 #ifndef VERBOSE_DEBUGGING
-    // const int sizey = 4096;
-    // const int sizex = 11008;
-    // const int sizez = 128;
+    const int sizey = 4096;
+    const int sizex = 11008;
+    const int sizez = 128;
 
-    const int sizey = 1;
-    const int sizex = 128;
-    const int sizez = 1;
+    // const int sizey = 4;
+    // const int sizex = 128;
+    // const int sizez = 4;
 #else
     /* Working - let's increase size */
     const int sizey = 1;
