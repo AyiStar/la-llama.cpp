@@ -13,6 +13,14 @@ Especially, we want to tackle the following challenges:
 * LLM evaluation on LoongArch platform.
 * Interesting applications with presentation.
 
+## Project Structure
+
+The overall directory structure of this project is organized as follows:
+- `llama.cpp-b2430/`: The original code of llama.cpp with fixed release version `b2430`. During development, we try to keep minimum change within this directory by only revising the build system (Makefile) and some conditionally compiled code (Macros to insert our work). Most of the real work are in the `src/` directory.
+- `src/`: This is where we put the real optimization code, i.e., `loongarch_matmul.[cpp|h]`.
+- `tests/`: The benchmark code, which is altered from `llama.cpp-b2430/examples/benchmark/benchmark-matmult.cpp`. That means, the performance measure is completely comparable with the former reported results in community.
+- `docs/`: The documentation generated along with the project.
+
 ## Plan
 
 Based on the above challenges, the project can be divided into the following 4 stages:
@@ -54,8 +62,10 @@ At this stage, we get familiar with the concept of cross compilation, build and
 
 ### Optimization Stage
 Thanks to [the excellent work from Loongson team](https://github.com/ggerganov/llama.cpp/pull/6454), we have a great oppotunity to learn about SIMD acceleration with LoongArch LSX/LASX vector instruction set. Part of our work are based on them.
-- [x] Add LSX/LASX SIMD support for GGML_SIMD in `ggml.c`.
+- [x] Identify performance bottleneck in llama.cpp.
+- [x] Add LSX/LASX SIMD acceleration for llama.cpp.
+- [x] Add LASX GEMM acceleration for llama.cpp.
 
 ### Benchmark Stage
 Benchmark goes along with optimization because we always want to know the exact improvement.
-- [ ] 
+- [x] Measure performance improvement on Loongson 3A6000 processor.
