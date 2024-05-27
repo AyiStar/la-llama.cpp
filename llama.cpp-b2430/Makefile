@@ -607,15 +607,16 @@ ggml-mpi.o: ggml-mpi.c ggml-mpi.h
 endif # LLAMA_MPI
 
 ifdef LLAMA_LOONGARCH
-LOONGARCH_DIR = ../src
-CPPFLAGS += -I$(LOONGARCH_DIR)
+LOONGARCH_SRCDIR = ../src
+LOONGARCH_TESTDIR = ../test
+CPPFLAGS += -I$(LOONGARCH_SRCDIR)
 CPPFLAGS += -DLA_LLAMA
-OBJS += $(LOONGARCH_DIR)/loongarch_matmul.o
+OBJS += $(LOONGARCH_SRCDIR)/loongarch_matmul.o
 
 .PHONY: lamm
-lamm: $(LOONGARCH_DIR)/loongarch_matmul.o
+lamm: $(LOONGARCH_SRCDIR)/loongarch_matmul.o
 
-$(LOONGARCH_DIR)/loongarch_matmul.o: $(LOONGARCH_DIR)/loongarch_matmul.cpp $(LOONGARCH_DIR)/loongarch_matmul.h
+$(LOONGARCH_SRCDIR)/loongarch_matmul.o: $(LOONGARCH_SRCDIR)/loongarch_matmul.cpp $(LOONGARCH_SRCDIR)/loongarch_matmul.h
 	$(CXX) $(CXXFLAGS) -std=c++17 $(LAMM_FLAGS) -c $< -o $@ 
 endif
 
@@ -878,9 +879,9 @@ run-benchmark-matmult: benchmark-matmult
 
 ifdef LLAMA_LOONGARCH
 .PHONY: la-benchmark-matmult
-la-benchmark-matmult: $(LOONGARCH_DIR)/la-benchmark-matmult.cpp build-info.o ggml.o llama.o $(OBJS)
+la-benchmark-matmult: $(LOONGARCH_TESTDIR)/la-benchmark-matmult.cpp build-info.o ggml.o llama.o $(OBJS)
 	$(CXX) $(CXXFLAGS) -c $< -o $(call GET_OBJ_FILE, $<)
-	$(CXX) $(CXXFLAGS) $(filter-out %.h $<,$^) $(call GET_OBJ_FILE, $<) -o $(LOONGARCH_DIR)/$@ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) $(filter-out %.h $<,$^) $(call GET_OBJ_FILE, $<) -o $(LOONGARCH_TESTDIR)/$@ $(LDFLAGS)
 endif
 
 .PHONY: run-benchmark-matmult swift

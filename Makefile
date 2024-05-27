@@ -35,7 +35,7 @@ $(SRC_DIR)/loongarch_matmul.o:
 .PHONY: main
 main: $(SRC_DIR)/loongarch_matmul.o
 	$(MAKE) -C $(LLAMA_CPP_DIR) main $(MK_FORCE) -j8
-	cp $(LLAMA_CPP_DIR)/main $(SRC_DIR)
+	cp $(LLAMA_CPP_DIR)/main $(TEST_DIR)
 
 .PHONY: clean
 clean:

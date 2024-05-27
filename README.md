@@ -18,7 +18,7 @@ Especially, we want to tackle the following challenges:
 The overall directory structure of this project is organized as follows:
 - `llama.cpp-b2430/`: The original code of llama.cpp with fixed release version `b2430`. During development, we try to keep minimum change within this directory by only revising the build system (Makefile) and some conditionally compiled code (Macros to insert our work). Most of the real work are in the `src/` directory.
 - `src/`: This is where we put the real optimization code, i.e., `loongarch_matmul.[cpp|h]`.
-- `tests/`: The benchmark code, which is altered from `llama.cpp-b2430/examples/benchmark/benchmark-matmult.cpp`. That means, the performance measure is completely comparable with the former reported results in community.
+- `test/`: The benchmark code, which is altered from `llama.cpp-b2430/examples/benchmark/benchmark-matmult.cpp`. That means, the performance measure is completely comparable with the former reported results in community.
 - `docs/`: The documentation generated along with the project.
 
 ## Plan
