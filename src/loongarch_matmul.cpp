@@ -27,24 +27,12 @@ constexpr int kOptLevel = 3;
 // abstraction for loongarch_asx SIMD intrinsics
 namespace simd {
 
-enum class SIMD_ISA { AVX2, LASX, NONE };
-
-#if defined(__loongarch_asx)
-constexpr SIMD_ISA kISA = SIMD_ISA::LASX;
-#elif defined(__AVX2__)
-constexpr SIMD_ISA kISA = SIMD_ISA::AVX2;
-#else
-constexpr SIMD_ISA kISA = SIMD_ISA::NONE;
-#endif
-
-static_assert(kISA != SIMD_ISA::NONE);
-
 constexpr int kNumVecReg = 32;
 constexpr int kVecWidth = 256;
 constexpr int kF32PerVec = kVecWidth / 32;
 
-using vreg_t = __m256;  // vector register type
-using ivreg_t = __m256i;  // integer vector register type
+using vreg_t = __m256;   // vector register type
+using ivreg_t = __m256i; // integer vector register type
 
 #if defined(__loongarch_asx)
 
@@ -55,12 +43,13 @@ using ivreg_t = __m256i;  // integer vector register type
 #define VREGS_PREFIX "$f"
 #define XREGS_PREFIX "$f"
 #endif
-#define __ALL_REGS "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31"
+#define __ALL_REGS                                                             \
+  "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27," \
+  "28,29,30,31"
 
-typedef union
-{
-    int32_t i;
-    float f;
+typedef union {
+  int32_t i;
+  float f;
 } FloatInt;
 
 LA_INLINE vreg_t vset(const float val) {
@@ -68,34 +57,31 @@ LA_INLINE vreg_t vset(const float val) {
   return (__m256)__lasx_xvreplgr2vr_w(fi_tmpval.i);
 }
 
-LA_INLINE ivreg_t lasx_set_q(__m128i inhi, __m128i inlo)
-{
-    __m256i out;
-    __asm__ volatile (
-        ".irp i," __ALL_REGS                "\n\t"
-        " .ifc %[hi], " VREGS_PREFIX "\\i    \n\t"
-        "  .irp j," __ALL_REGS              "\n\t"
-        "   .ifc %[lo], " VREGS_PREFIX "\\j  \n\t"
-        "    xvpermi.q $xr\\i, $xr\\j, 0x20  \n\t"
-        "   .endif                           \n\t"
-        "  .endr                             \n\t"
-        " .endif                             \n\t"
-        ".endr                               \n\t"
-        ".ifnc %[out], %[hi]                 \n\t"
-        ".irp i," __ALL_REGS                "\n\t"
-        " .ifc %[out], " XREGS_PREFIX "\\i   \n\t"
-        "  .irp j," __ALL_REGS              "\n\t"
-        "   .ifc %[hi], " VREGS_PREFIX "\\j  \n\t"
-        "    xvori.b $xr\\i, $xr\\j, 0       \n\t"
-        "   .endif                           \n\t"
-        "  .endr                             \n\t"
-        " .endif                             \n\t"
-        ".endr                               \n\t"
-        ".endif                              \n\t"
-        : [out] "=f" (out), [hi] "+f" (inhi)
-        : [lo] "f" (inlo)
-    );
-    return out;
+LA_INLINE ivreg_t lasx_set_q(__m128i inhi, __m128i inlo) {
+  __m256i out;
+  __asm__ volatile(".irp i," __ALL_REGS "\n\t"
+                   " .ifc %[hi], " VREGS_PREFIX "\\i    \n\t"
+                   "  .irp j," __ALL_REGS "\n\t"
+                   "   .ifc %[lo], " VREGS_PREFIX "\\j  \n\t"
+                   "    xvpermi.q $xr\\i, $xr\\j, 0x20  \n\t"
+                   "   .endif                           \n\t"
+                   "  .endr                             \n\t"
+                   " .endif                             \n\t"
+                   ".endr                               \n\t"
+                   ".ifnc %[out], %[hi]                 \n\t"
+                   ".irp i," __ALL_REGS "\n\t"
+                   " .ifc %[out], " XREGS_PREFIX "\\i   \n\t"
+                   "  .irp j," __ALL_REGS "\n\t"
+                   "   .ifc %[hi], " VREGS_PREFIX "\\j  \n\t"
+                   "    xvori.b $xr\\i, $xr\\j, 0       \n\t"
+                   "   .endif                           \n\t"
+                   "  .endr                             \n\t"
+                   " .endif                             \n\t"
+                   ".endr                               \n\t"
+                   ".endif                              \n\t"
+                   : [out] "=f"(out), [hi] "+f"(inhi)
+                   : [lo] "f"(inlo));
+  return out;
 }
 
 // x + y: f32
@@ -114,7 +100,7 @@ LA_INLINE vreg_t mul(vreg_t x, vreg_t y) { return __lasx_xvfmul_s(x, y); }
 
 // vector -> f32
 LA_INLINE float reduce_sum(vreg_t x) {
-  float res {0};
+  float res{0};
   float *tmp_p = (float *)&x;
   res = tmp_p[0] + tmp_p[1] + tmp_p[2] + tmp_p[3] + tmp_p[4] + tmp_p[5] +
         tmp_p[6] + tmp_p[7];
@@ -130,27 +116,26 @@ LA_INLINE ivreg_t load_quants(const block_q4_1 *p) {
   return __lasx_xvandi_b(lasx_set_q(hi, lo), 0xf);
 }
 LA_INLINE ivreg_t load_quants(const block_q8_1 *p) {
-  return __lasx_xvld( (const __m256i *)(p->qs), 0);
+  return __lasx_xvld((const __m256i *)(p->qs), 0);
 }
 
 LA_INLINE vreg_t sum_i16_pairs_float(const ivreg_t x) {
-    ivreg_t v = __lasx_xvpackod_h(x, x);
-    ivreg_t summed_pairs = __lasx_xvaddwev_w_h(x, v);
-    return __lasx_xvffint_s_w(summed_pairs);
+  ivreg_t v = __lasx_xvpackod_h(x, x);
+  ivreg_t summed_pairs = __lasx_xvaddwev_w_h(x, v);
+  return __lasx_xvffint_s_w(summed_pairs);
 }
 
-LA_INLINE ivreg_t lasx_maddubs_h(ivreg_t a, ivreg_t b)
-{
-    __m256i tmp1, tmp2;
-    tmp1 = __lasx_xvmulwev_h_b(a, b);
-    tmp2 = __lasx_xvmulwod_h_b(a, b);
-    return __lasx_xvsadd_h(tmp1, tmp2);
+LA_INLINE ivreg_t lasx_maddubs_h(ivreg_t a, ivreg_t b) {
+  __m256i tmp1, tmp2;
+  tmp1 = __lasx_xvmulwev_h_b(a, b);
+  tmp2 = __lasx_xvmulwod_h_b(a, b);
+  return __lasx_xvsadd_h(tmp1, tmp2);
 }
 
 LA_INLINE vreg_t mul_sum_us8_pairs_float(const ivreg_t ax, const ivreg_t sy) {
-    // Perform multiplication and create 16-bit values
-    const ivreg_t dot = lasx_maddubs_h(ax, sy);
-    return sum_i16_pairs_float(dot);
+  // Perform multiplication and create 16-bit values
+  const ivreg_t dot = lasx_maddubs_h(ax, sy);
+  return sum_i16_pairs_float(dot);
 }
 
 #elif defined(__AVX2__)
@@ -188,39 +173,36 @@ LA_INLINE vreg_t load(const float *p) { return _mm256_loadu_ps(p); }
 
 // load from quantized block
 LA_INLINE ivreg_t load_quants(const block_q4_1 *p) {
-  __m128i qs =  _mm_loadu_si128((const __m128i *)(p->qs)); // load squeezed 4-bit qs
-  return _mm256_and_si256(  // mask higher 4 bits for each uint8
-    _mm256_set1_epi8(15),
-    _mm256_insertf128_si256(  // copy and expand 
-      _mm256_castsi128_si256(qs),
-      _mm_srli_epi16(qs, 4),
-      1
-    )
-  );
+  __m128i qs =
+      _mm_loadu_si128((const __m128i *)(p->qs)); // load squeezed 4-bit qs
+  return _mm256_and_si256( // mask higher 4 bits for each uint8
+      _mm256_set1_epi8(15),
+      _mm256_insertf128_si256( // copy and expand
+          _mm256_castsi128_si256(qs), _mm_srli_epi16(qs, 4), 1));
 }
-LA_INLINE ivreg_t load_quants(const block_q8_1 *p) { return _mm256_loadu_si256((const __m256i *)(p->qs)); };
+LA_INLINE ivreg_t load_quants(const block_q8_1 *p) {
+  return _mm256_loadu_si256((const __m256i *)(p->qs));
+};
 
-#define MM256_SET_M128I(a, b) _mm256_insertf128_si256(_mm256_castsi128_si256(b), (a), 1)
+#define MM256_SET_M128I(a, b)                                                  \
+  _mm256_insertf128_si256(_mm256_castsi128_si256(b), (a), 1)
 
 // add int16_t pairwise and return as float vector
 inline vreg_t sum_i16_pairs_float(const ivreg_t x) {
-    const __m256i ones = _mm256_set1_epi16(1);
-    const __m256i summed_pairs = _mm256_madd_epi16(ones, x);
-    return _mm256_cvtepi32_ps(summed_pairs);
+  const __m256i ones = _mm256_set1_epi16(1);
+  const __m256i summed_pairs = _mm256_madd_epi16(ones, x);
+  return _mm256_cvtepi32_ps(summed_pairs);
 }
 
 inline vreg_t mul_sum_us8_pairs_float(const ivreg_t ax, const ivreg_t sy) {
-    // Perform multiplication and create 16-bit values
-    const __m256i dot = _mm256_maddubs_epi16(ax, sy);
-    return sum_i16_pairs_float(dot);
-
+  // Perform multiplication and create 16-bit values
+  const __m256i dot = _mm256_maddubs_epi16(ax, sy);
+  return sum_i16_pairs_float(dot);
 }
 
 #endif
 
-
 } // namespace simd
-
 
 namespace impl {
 
@@ -232,24 +214,24 @@ struct Matrix {
   int64_t ld;
 };
 
-template<ggml_type dtype>
+template <ggml_type dtype>
 LA_NOINLINE void gemm(const Matrix &A, const Matrix &B, const Matrix &C,
                       int ith, int nth);
 
-template<ggml_type dtype>
+template <ggml_type dtype>
 LA_INLINE void gemm_naive(const Matrix &A, const Matrix &B, const Matrix &C,
                           int ith, int nth);
 
-template<ggml_type dtype>
+template <ggml_type dtype>
 LA_INLINE void gemm_simd(const Matrix &A, const Matrix &B, const Matrix &C,
                          int ith, int nth);
 
-template<ggml_type dtype>
+template <ggml_type dtype>
 LA_INLINE void gemm_block_simd(const Matrix &A, const Matrix &B,
                                const Matrix &C, int ith, int nth);
 
 // the real gemm function
-template<ggml_type dtype>
+template <ggml_type dtype>
 void gemm(const Matrix &A, const Matrix &B, const Matrix &C, int ith, int nth) {
   if constexpr (kOptLevel == 1) {
     gemm_naive<dtype>(A, B, C, ith, nth);
@@ -260,7 +242,7 @@ void gemm(const Matrix &A, const Matrix &B, const Matrix &C, int ith, int nth) {
   }
 }
 
-template<ggml_type dtype>
+template <ggml_type dtype>
 LA_INLINE void gemm_naive(const Matrix &A, const Matrix &B, const Matrix &C,
                           int ith, int nth) {
   if (ith == 0) {
@@ -282,7 +264,8 @@ LA_INLINE void gemm_naive(const Matrix &A, const Matrix &B, const Matrix &C,
   assert(C.type == GGML_TYPE_F32);
   if constexpr (dtype == GGML_TYPE_F32) {
     assert(A.type == dtype && B.type == dtype);
-    float *a = (float *)(A.data), *b = (float *)(B.data), *c = (float *)(C.data);
+    float *a = (float *)(A.data), *b = (float *)(B.data),
+          *c = (float *)(C.data);
     for (int i = job_start; i < job_end; i++) {
       for (int j = 0; j < N; j++) {
         float sum = 0;
@@ -293,14 +276,13 @@ LA_INLINE void gemm_naive(const Matrix &A, const Matrix &B, const Matrix &C,
       }
     }
     return;
-  }
-  else if constexpr (dtype == GGML_TYPE_Q4_1) {
+  } else if constexpr (dtype == GGML_TYPE_Q4_1) {
     assert(A.type == dtype && B.type == GGML_TYPE_Q8_1);
     constexpr int Q = QK8_1;
     assert(K % Q == 0);
-    auto *a = (block_q4_1*)(A.data);
-    auto *b = (block_q8_1*)(B.data);
-    auto *c = (float*)(C.data);
+    auto *a = (block_q4_1 *)(A.data);
+    auto *b = (block_q8_1 *)(B.data);
+    auto *c = (float *)(C.data);
     for (int i = job_start; i < job_end; i++) {
       for (int j = 0; j < N; j++) {
         float sum = 0;
@@ -308,12 +290,16 @@ LA_INLINE void gemm_naive(const Matrix &A, const Matrix &B, const Matrix &C,
           const auto *aik = a + (i * lda + k);
           const auto *bjk = b + (j * ldb + k);
           int sumi = 0;
-          for (int h = 0; h < Q/2; h++) {
+          for (int h = 0; h < Q / 2; h++) {
             sumi += (aik->qs[h] & 0x0F) * (bjk->qs[h]);
-            sumi += (aik->qs[h] >>   4) * (bjk->qs[h + Q/2]);
+            sumi += (aik->qs[h] >> 4) * (bjk->qs[h + Q / 2]);
           }
-          sum += (GGML_FP16_TO_FP32(aik->d)*GGML_FP16_TO_FP32(bjk->d))*sumi + GGML_FP16_TO_FP32(aik->m) * GGML_FP16_TO_FP32(bjk->s);
-          // printf("sumi = %d, aik->m=%.2f, bjk->s=%.2f at (i=%d, j=%d, k=%d)\n", sumi, GGML_FP16_TO_FP32(aik->m), GGML_FP16_TO_FP32(bjk->s), i, j, k);
+          sum +=
+              (GGML_FP16_TO_FP32(aik->d) * GGML_FP16_TO_FP32(bjk->d)) * sumi +
+              GGML_FP16_TO_FP32(aik->m) * GGML_FP16_TO_FP32(bjk->s);
+          // printf("sumi = %d, aik->m=%.2f, bjk->s=%.2f at (i=%d, j=%d,
+          // k=%d)\n", sumi, GGML_FP16_TO_FP32(aik->m),
+          // GGML_FP16_TO_FP32(bjk->s), i, j, k);
         }
         c[j * ldc + i] = sum;
         // printf("C[%d, %d] = %f\n", i, j, sum);
@@ -324,11 +310,9 @@ LA_INLINE void gemm_naive(const Matrix &A, const Matrix &B, const Matrix &C,
   assert(false); // unreachable
 }
 
-template<ggml_type dtype>
+template <ggml_type dtype>
 LA_INLINE void gemm_simd(const Matrix &A, const Matrix &B, const Matrix &C,
                          int ith, int nth) {
-  assert(A.type == GGML_TYPE_F32 && B.type == A.type && C.type == A.type);
-  float *a = (float *)(A.data), *b = (float *)(B.data), *c = (float *)(C.data);
   int64_t lda{A.ld}, ldb{B.ld}, ldc{C.ld};
 
   // simd implementation
@@ -348,6 +332,8 @@ LA_INLINE void gemm_simd(const Matrix &A, const Matrix &B, const Matrix &C,
   }
 
   if constexpr (dtype == GGML_TYPE_F32) {
+    float *a = (float *)(A.data), *b = (float *)(B.data),
+          *c = (float *)(C.data);
     for (int i = job_start; i < job_end; i++) {
       for (int j = 0; j < N; j++) {
         simd::vreg_t vc = {0}, va = {0}, vb = {0};
@@ -359,44 +345,42 @@ LA_INLINE void gemm_simd(const Matrix &A, const Matrix &B, const Matrix &C,
         c[j * ldc + i] = simd::reduce_sum(vc);
       }
     }
-  }
-  else if constexpr (dtype == GGML_TYPE_Q4_1) {
+  } else if constexpr (dtype == GGML_TYPE_Q4_1) {
     assert(A.type == dtype && B.type == GGML_TYPE_Q8_1);
-    auto *a = (block_q4_1*)(A.data);
-    auto *b = (block_q8_1*)(B.data);
-    auto *c = (float*)(C.data);
+    auto *a = (block_q4_1 *)(A.data);
+    auto *b = (block_q8_1 *)(B.data);
+    auto *c = (float *)(C.data);
     for (int i = job_start; i < job_end; i++) {
       for (int j = 0; j < N; j++) {
         float summs = 0;
         simd::vreg_t acc = {0};
-        // float acc_f = {0};  // slow version
         const auto *ai = a + (i * lda);
         const auto *bj = b + (j * ldb);
         for (int k = 0; k < K; k++, ai++, bj++) {
           summs += GGML_FP16_TO_FP32(ai->m) * GGML_FP16_TO_FP32(bj->s);
           const simd::vreg_t ad = simd::vset(GGML_FP16_TO_FP32(ai->d));
           const simd::vreg_t bd = simd::vset(GGML_FP16_TO_FP32(bj->d));
-          const __m256 adbd = simd::mul( ad, bd );
+          const __m256 adbd = simd::mul(ad, bd);
           simd::ivreg_t va_qs = simd::load_quants(ai);
           simd::ivreg_t vb_qs = simd::load_quants(bj);
           const simd::vreg_t xy = simd::mul_sum_us8_pairs_float(va_qs, vb_qs);
           acc = simd::madd(adbd, xy, acc);
-          // acc_f += ad * bd * simd::vec_dot(va_qs, vb_qs);  // slow version
         }
         c[j * ldc + i] = simd::reduce_sum(acc) + summs;
-        // c[j * ldc + i] = acc_f + summs; // slow version
       }
     }
   }
 }
 
 template <int B0, int B1>
-LA_INLINE void gemm_block_kernel(const float *a, const float *b, float *c, int64_t lda,
-                                 int64_t ldb, int64_t ldc, int i, int j, int k);
+LA_INLINE void gemm_block_kernel(const float *a, const float *b, float *c,
+                                 int64_t lda, int64_t ldb, int64_t ldc, int i,
+                                 int j, int k);
 
 template <int B0, int B1>
-LA_INLINE void gemm_block_kernel(const block_q4_1 *a, const block_q8_1 *b, float *c, int64_t lda,
-                                 int64_t ldb, int64_t ldc, int i, int j, int k);
+LA_INLINE void gemm_block_kernel(const block_q4_1 *a, const block_q8_1 *b,
+                                 float *c, int64_t lda, int64_t ldb,
+                                 int64_t ldc, int i, int j, int k);
 
 template <ggml_type dtype>
 LA_INLINE void gemm_block_simd(const Matrix &A, const Matrix &B,
@@ -418,9 +402,9 @@ LA_INLINE void gemm_block_simd(const Matrix &A, const Matrix &B,
   }
 
   // assert ((job_end - job_start) % kBlockSize == 0);
-  
+
   // first use KxK block
-  
+
   constexpr int kBlockSize = (dtype == GGML_TYPE_F32) ? 5 : 4;
   int L0 = job_end - job_start, L1 = N;
   int ii = (L0 / kBlockSize * kBlockSize) + job_start;
@@ -429,12 +413,13 @@ LA_INLINE void gemm_block_simd(const Matrix &A, const Matrix &B,
 
   if constexpr (dtype == GGML_TYPE_F32) {
     assert((K % simd::kF32PerVec) == 0);
-    float *a = (float*)(A.data);
-    float *b = (float*)(B.data);
+    float *a = (float *)(A.data);
+    float *b = (float *)(B.data);
     float *c = (float *)(C.data);
     for (int i = job_start; i < ii; i += kBlockSize) {
       for (int j = 0; j < jj; j += kBlockSize) {
-        gemm_block_kernel<kBlockSize, kBlockSize>(a, b, c, lda, ldb, ldc, i, j, K);
+        gemm_block_kernel<kBlockSize, kBlockSize>(a, b, c, lda, ldb, ldc, i, j,
+                                                  K);
       }
       for (int j = jj; j < N; j++) {
         gemm_block_kernel<kBlockSize, 1>(a, b, c, lda, ldb, ldc, i, j, K);
@@ -448,15 +433,15 @@ LA_INLINE void gemm_block_simd(const Matrix &A, const Matrix &B,
         gemm_block_kernel<1, 1>(a, b, c, lda, ldb, ldc, i, j, K);
       }
     }
-  }
-  else if constexpr (dtype == GGML_TYPE_Q4_1) {
-    block_q4_1 *a = (block_q4_1*)(A.data);
-    block_q8_1 *b = (block_q8_1*)(B.data);
+  } else if constexpr (dtype == GGML_TYPE_Q4_1) {
+    block_q4_1 *a = (block_q4_1 *)(A.data);
+    block_q8_1 *b = (block_q8_1 *)(B.data);
     float *c = (float *)(C.data);
     // TODO duplicated code
     for (int i = job_start; i < ii; i += kBlockSize) {
       for (int j = 0; j < jj; j += kBlockSize) {
-        gemm_block_kernel<kBlockSize, kBlockSize>(a, b, c, lda, ldb, ldc, i, j, K);
+        gemm_block_kernel<kBlockSize, kBlockSize>(a, b, c, lda, ldb, ldc, i, j,
+                                                  K);
       }
       for (int j = jj; j < N; j++) {
         gemm_block_kernel<kBlockSize, 1>(a, b, c, lda, ldb, ldc, i, j, K);
@@ -474,9 +459,9 @@ LA_INLINE void gemm_block_simd(const Matrix &A, const Matrix &B,
 }
 
 template <int B0, int B1>
-LA_INLINE void gemm_block_kernel(const float *a, const float *b, float *c, int64_t lda,
-                                 int64_t ldb, int64_t ldc, int i, int j,
-                                 int k) {
+LA_INLINE void gemm_block_kernel(const float *a, const float *b, float *c,
+                                 int64_t lda, int64_t ldb, int64_t ldc, int i,
+                                 int j, int k) {
 
   static_assert(B0 > 0 && B0 <= 5);
   static_assert(B1 > 0 && B1 <= 5);
@@ -700,21 +685,19 @@ LA_INLINE void gemm_block_kernel(const float *a, const float *b, float *c, int64
 }
 
 template <int B0, int B1>
-LA_INLINE void gemm_block_kernel(const block_q4_1 *a, const block_q8_1 *b, float *c, int64_t lda,
-                                 int64_t ldb, int64_t ldc, int i, int j,
-                                 int K) {
+LA_INLINE void gemm_block_kernel(const block_q4_1 *a, const block_q8_1 *b,
+                                 float *c, int64_t lda, int64_t ldb,
+                                 int64_t ldc, int i, int j, int K) {
 
   static_assert(B0 > 0 && B0 <= 4);
   static_assert(B1 > 0 && B1 <= 4);
-
-  // std::cout << "calc (" << i << ", " << j << ") with kernel <" << B0 << ", "
-  // << B1 << ">" << std::endl;
 
   using namespace simd;
 
   ivreg_t va_qs = {0};
   simd::vreg_t vad = {0};
-  [[maybe_unused]] ivreg_t vb0_qs = {0}, vb1_qs = {0}, vb2_qs = {0}, vb3_qs = {0};
+  [[maybe_unused]] ivreg_t vb0_qs = {0}, vb1_qs = {0}, vb2_qs = {0},
+                           vb3_qs = {0};
   [[maybe_unused]] simd::vreg_t vbd0, vbd1, vbd2, vbd3;
   [[maybe_unused]] simd::vreg_t vc00 = {0}, vc01 = {0}, vc02 = {0}, vc03 = {0};
   [[maybe_unused]] simd::vreg_t vc10 = {0}, vc11 = {0}, vc12 = {0}, vc13 = {0};
@@ -730,7 +713,6 @@ LA_INLINE void gemm_block_kernel(const block_q4_1 *a, const block_q8_1 *b, float
   [[maybe_unused]] const auto *bj1{b + ((j + 1) * ldb)};
   [[maybe_unused]] const auto *bj2{b + ((j + 2) * ldb)};
   [[maybe_unused]] const auto *bj3{b + ((j + 3) * ldb)};
-  
 
   for (int k = 0; k < K; k++) {
 
@@ -755,20 +737,28 @@ LA_INLINE void gemm_block_kernel(const block_q4_1 *a, const block_q8_1 *b, float
       va_qs = load_quants(ai0 + k);
       vad = vset(GGML_FP16_TO_FP32(ai0[k].d));
       if constexpr (B1 > 0) {
-        summs[0][0] += GGML_FP16_TO_FP32(ai0[k].m) * GGML_FP16_TO_FP32(bj0[k].s);
-        vc00 = madd(mul(vad, vbd0), mul_sum_us8_pairs_float(va_qs, vb0_qs) , vc00);
+        summs[0][0] +=
+            GGML_FP16_TO_FP32(ai0[k].m) * GGML_FP16_TO_FP32(bj0[k].s);
+        vc00 =
+            madd(mul(vad, vbd0), mul_sum_us8_pairs_float(va_qs, vb0_qs), vc00);
       }
       if constexpr (B1 > 1) {
-        summs[0][1] += GGML_FP16_TO_FP32(ai0[k].m) * GGML_FP16_TO_FP32(bj1[k].s);
-        vc01 = madd(mul(vad, vbd1), mul_sum_us8_pairs_float(va_qs, vb1_qs) , vc01);
+        summs[0][1] +=
+            GGML_FP16_TO_FP32(ai0[k].m) * GGML_FP16_TO_FP32(bj1[k].s);
+        vc01 =
+            madd(mul(vad, vbd1), mul_sum_us8_pairs_float(va_qs, vb1_qs), vc01);
       }
       if constexpr (B1 > 2) {
-        summs[0][2] += GGML_FP16_TO_FP32(ai0[k].m) * GGML_FP16_TO_FP32(bj2[k].s);
-        vc02 = madd(mul(vad, vbd2), mul_sum_us8_pairs_float(va_qs, vb2_qs) , vc02);
+        summs[0][2] +=
+            GGML_FP16_TO_FP32(ai0[k].m) * GGML_FP16_TO_FP32(bj2[k].s);
+        vc02 =
+            madd(mul(vad, vbd2), mul_sum_us8_pairs_float(va_qs, vb2_qs), vc02);
       }
       if constexpr (B1 > 3) {
-        summs[0][3] += GGML_FP16_TO_FP32(ai0[k].m) * GGML_FP16_TO_FP32(bj3[k].s);
-        vc03 = madd(mul(vad, vbd3), mul_sum_us8_pairs_float(va_qs, vb3_qs) , vc03);
+        summs[0][3] +=
+            GGML_FP16_TO_FP32(ai0[k].m) * GGML_FP16_TO_FP32(bj3[k].s);
+        vc03 =
+            madd(mul(vad, vbd3), mul_sum_us8_pairs_float(va_qs, vb3_qs), vc03);
       }
     }
 
@@ -776,20 +766,28 @@ LA_INLINE void gemm_block_kernel(const block_q4_1 *a, const block_q8_1 *b, float
       va_qs = load_quants(ai1 + k);
       vad = vset(GGML_FP16_TO_FP32(ai1[k].d));
       if constexpr (B1 > 0) {
-        summs[1][0] += GGML_FP16_TO_FP32(ai1[k].m) * GGML_FP16_TO_FP32(bj0[k].s);
-        vc10 = madd(mul(vad, vbd0), mul_sum_us8_pairs_float(va_qs, vb0_qs) , vc10);
+        summs[1][0] +=
+            GGML_FP16_TO_FP32(ai1[k].m) * GGML_FP16_TO_FP32(bj0[k].s);
+        vc10 =
+            madd(mul(vad, vbd0), mul_sum_us8_pairs_float(va_qs, vb0_qs), vc10);
       }
       if constexpr (B1 > 1) {
-        summs[1][1] += GGML_FP16_TO_FP32(ai1[k].m) * GGML_FP16_TO_FP32(bj1[k].s);
-        vc11 = madd(mul(vad, vbd1), mul_sum_us8_pairs_float(va_qs, vb1_qs) , vc11);
+        summs[1][1] +=
+            GGML_FP16_TO_FP32(ai1[k].m) * GGML_FP16_TO_FP32(bj1[k].s);
+        vc11 =
+            madd(mul(vad, vbd1), mul_sum_us8_pairs_float(va_qs, vb1_qs), vc11);
       }
       if constexpr (B1 > 2) {
-        summs[1][2] += GGML_FP16_TO_FP32(ai1[k].m) * GGML_FP16_TO_FP32(bj2[k].s);
-        vc12 = madd(mul(vad, vbd2), mul_sum_us8_pairs_float(va_qs, vb2_qs) , vc12);
+        summs[1][2] +=
+            GGML_FP16_TO_FP32(ai1[k].m) * GGML_FP16_TO_FP32(bj2[k].s);
+        vc12 =
+            madd(mul(vad, vbd2), mul_sum_us8_pairs_float(va_qs, vb2_qs), vc12);
       }
       if constexpr (B1 > 3) {
-        summs[1][3] += GGML_FP16_TO_FP32(ai1[k].m) * GGML_FP16_TO_FP32(bj3[k].s);
-        vc13 = madd(mul(vad, vbd3), mul_sum_us8_pairs_float(va_qs, vb3_qs) , vc13);
+        summs[1][3] +=
+            GGML_FP16_TO_FP32(ai1[k].m) * GGML_FP16_TO_FP32(bj3[k].s);
+        vc13 =
+            madd(mul(vad, vbd3), mul_sum_us8_pairs_float(va_qs, vb3_qs), vc13);
       }
     }
 
@@ -797,20 +795,28 @@ LA_INLINE void gemm_block_kernel(const block_q4_1 *a, const block_q8_1 *b, float
       va_qs = load_quants(ai2 + k);
       vad = vset(GGML_FP16_TO_FP32(ai2[k].d));
       if constexpr (B1 > 0) {
-        summs[2][0] += GGML_FP16_TO_FP32(ai2[k].m) * GGML_FP16_TO_FP32(bj0[k].s);
-        vc20 = madd(mul(vad, vbd0), mul_sum_us8_pairs_float(va_qs, vb0_qs) , vc20);
+        summs[2][0] +=
+            GGML_FP16_TO_FP32(ai2[k].m) * GGML_FP16_TO_FP32(bj0[k].s);
+        vc20 =
+            madd(mul(vad, vbd0), mul_sum_us8_pairs_float(va_qs, vb0_qs), vc20);
       }
       if constexpr (B1 > 1) {
-        summs[2][1] += GGML_FP16_TO_FP32(ai2[k].m) * GGML_FP16_TO_FP32(bj1[k].s);
-        vc21 = madd(mul(vad, vbd1), mul_sum_us8_pairs_float(va_qs, vb1_qs) , vc21);
+        summs[2][1] +=
+            GGML_FP16_TO_FP32(ai2[k].m) * GGML_FP16_TO_FP32(bj1[k].s);
+        vc21 =
+            madd(mul(vad, vbd1), mul_sum_us8_pairs_float(va_qs, vb1_qs), vc21);
       }
       if constexpr (B1 > 2) {
-        summs[2][2] += GGML_FP16_TO_FP32(ai2[k].m) * GGML_FP16_TO_FP32(bj2[k].s);
-        vc22 = madd(mul(vad, vbd2), mul_sum_us8_pairs_float(va_qs, vb2_qs) , vc22);
+        summs[2][2] +=
+            GGML_FP16_TO_FP32(ai2[k].m) * GGML_FP16_TO_FP32(bj2[k].s);
+        vc22 =
+            madd(mul(vad, vbd2), mul_sum_us8_pairs_float(va_qs, vb2_qs), vc22);
       }
       if constexpr (B1 > 3) {
-        summs[2][3] += GGML_FP16_TO_FP32(ai2[k].m) * GGML_FP16_TO_FP32(bj3[k].s);
-        vc23 = madd(mul(vad, vbd3), mul_sum_us8_pairs_float(va_qs, vb3_qs) , vc23);
+        summs[2][3] +=
+            GGML_FP16_TO_FP32(ai2[k].m) * GGML_FP16_TO_FP32(bj3[k].s);
+        vc23 =
+            madd(mul(vad, vbd3), mul_sum_us8_pairs_float(va_qs, vb3_qs), vc23);
       }
     }
 
@@ -818,51 +824,89 @@ LA_INLINE void gemm_block_kernel(const block_q4_1 *a, const block_q8_1 *b, float
       va_qs = load_quants(ai3 + k);
       vad = vset(GGML_FP16_TO_FP32(ai3[k].d));
       if constexpr (B1 > 0) {
-        summs[3][0] += GGML_FP16_TO_FP32(ai3[k].m) * GGML_FP16_TO_FP32(bj0[k].s);
-        vc30 = madd(mul(vad, vbd0), mul_sum_us8_pairs_float(va_qs, vb0_qs) , vc30);
+        summs[3][0] +=
+            GGML_FP16_TO_FP32(ai3[k].m) * GGML_FP16_TO_FP32(bj0[k].s);
+        vc30 =
+            madd(mul(vad, vbd0), mul_sum_us8_pairs_float(va_qs, vb0_qs), vc30);
       }
       if constexpr (B1 > 1) {
-        summs[3][1] += GGML_FP16_TO_FP32(ai3[k].m) * GGML_FP16_TO_FP32(bj1[k].s);
-        vc31 = madd(mul(vad, vbd1), mul_sum_us8_pairs_float(va_qs, vb1_qs) , vc31);
+        summs[3][1] +=
+            GGML_FP16_TO_FP32(ai3[k].m) * GGML_FP16_TO_FP32(bj1[k].s);
+        vc31 =
+            madd(mul(vad, vbd1), mul_sum_us8_pairs_float(va_qs, vb1_qs), vc31);
       }
       if constexpr (B1 > 2) {
-        summs[3][2] += GGML_FP16_TO_FP32(ai3[k].m) * GGML_FP16_TO_FP32(bj2[k].s);
-        vc32 = madd(mul(vad, vbd2), mul_sum_us8_pairs_float(va_qs, vb2_qs) , vc32);
+        summs[3][2] +=
+            GGML_FP16_TO_FP32(ai3[k].m) * GGML_FP16_TO_FP32(bj2[k].s);
+        vc32 =
+            madd(mul(vad, vbd2), mul_sum_us8_pairs_float(va_qs, vb2_qs), vc32);
       }
       if constexpr (B1 > 3) {
-        summs[3][3] += GGML_FP16_TO_FP32(ai3[k].m) * GGML_FP16_TO_FP32(bj3[k].s);
-        vc33 = madd(mul(vad, vbd3), mul_sum_us8_pairs_float(va_qs, vb3_qs) , vc33);
+        summs[3][3] +=
+            GGML_FP16_TO_FP32(ai3[k].m) * GGML_FP16_TO_FP32(bj3[k].s);
+        vc33 =
+            madd(mul(vad, vbd3), mul_sum_us8_pairs_float(va_qs, vb3_qs), vc33);
       }
     }
-    
   }
 
   if constexpr (B0 > 0) {
-    if constexpr (B1 > 0) { c[ldc * (j + 0) + (i + 0)] = reduce_sum(vc00) + summs[0][0]; }
-    if constexpr (B1 > 1) { c[ldc * (j + 1) + (i + 0)] = reduce_sum(vc01) + summs[0][1]; }
-    if constexpr (B1 > 2) { c[ldc * (j + 2) + (i + 0)] = reduce_sum(vc02) + summs[0][2]; }
-    if constexpr (B1 > 3) { c[ldc * (j + 3) + (i + 0)] = reduce_sum(vc03) + summs[0][3]; }
+    if constexpr (B1 > 0) {
+      c[ldc * (j + 0) + (i + 0)] = reduce_sum(vc00) + summs[0][0];
+    }
+    if constexpr (B1 > 1) {
+      c[ldc * (j + 1) + (i + 0)] = reduce_sum(vc01) + summs[0][1];
+    }
+    if constexpr (B1 > 2) {
+      c[ldc * (j + 2) + (i + 0)] = reduce_sum(vc02) + summs[0][2];
+    }
+    if constexpr (B1 > 3) {
+      c[ldc * (j + 3) + (i + 0)] = reduce_sum(vc03) + summs[0][3];
+    }
   }
   if constexpr (B0 > 1) {
-    if constexpr (B1 > 0) { c[ldc * (j + 0) + (i + 1)] = reduce_sum(vc10) + summs[1][0]; }
-    if constexpr (B1 > 1) { c[ldc * (j + 1) + (i + 1)] = reduce_sum(vc11) + summs[1][1]; }
-    if constexpr (B1 > 2) { c[ldc * (j + 2) + (i + 1)] = reduce_sum(vc12) + summs[1][2]; }
-    if constexpr (B1 > 3) { c[ldc * (j + 3) + (i + 1)] = reduce_sum(vc13) + summs[1][3]; }
+    if constexpr (B1 > 0) {
+      c[ldc * (j + 0) + (i + 1)] = reduce_sum(vc10) + summs[1][0];
+    }
+    if constexpr (B1 > 1) {
+      c[ldc * (j + 1) + (i + 1)] = reduce_sum(vc11) + summs[1][1];
+    }
+    if constexpr (B1 > 2) {
+      c[ldc * (j + 2) + (i + 1)] = reduce_sum(vc12) + summs[1][2];
+    }
+    if constexpr (B1 > 3) {
+      c[ldc * (j + 3) + (i + 1)] = reduce_sum(vc13) + summs[1][3];
+    }
   }
   if constexpr (B0 > 2) {
-    if constexpr (B1 > 0) { c[ldc * (j + 0) + (i + 2)] = reduce_sum(vc20) + summs[2][0]; }
-    if constexpr (B1 > 1) { c[ldc * (j + 1) + (i + 2)] = reduce_sum(vc21) + summs[2][1]; }
-    if constexpr (B1 > 2) { c[ldc * (j + 2) + (i + 2)] = reduce_sum(vc22) + summs[2][2]; }
-    if constexpr (B1 > 3) { c[ldc * (j + 3) + (i + 2)] = reduce_sum(vc23) + summs[2][3]; }
+    if constexpr (B1 > 0) {
+      c[ldc * (j + 0) + (i + 2)] = reduce_sum(vc20) + summs[2][0];
+    }
+    if constexpr (B1 > 1) {
+      c[ldc * (j + 1) + (i + 2)] = reduce_sum(vc21) + summs[2][1];
+    }
+    if constexpr (B1 > 2) {
+      c[ldc * (j + 2) + (i + 2)] = reduce_sum(vc22) + summs[2][2];
+    }
+    if constexpr (B1 > 3) {
+      c[ldc * (j + 3) + (i + 2)] = reduce_sum(vc23) + summs[2][3];
+    }
   }
   if constexpr (B0 > 3) {
-    if constexpr (B1 > 0) { c[ldc * (j + 0) + (i + 3)] = reduce_sum(vc30) + summs[3][0]; }
-    if constexpr (B1 > 1) { c[ldc * (j + 1) + (i + 3)] = reduce_sum(vc31) + summs[3][1]; }
-    if constexpr (B1 > 2) { c[ldc * (j + 2) + (i + 3)] = reduce_sum(vc32) + summs[3][2]; }
-    if constexpr (B1 > 3) { c[ldc * (j + 3) + (i + 3)] = reduce_sum(vc33) + summs[3][3]; }
+    if constexpr (B1 > 0) {
+      c[ldc * (j + 0) + (i + 3)] = reduce_sum(vc30) + summs[3][0];
+    }
+    if constexpr (B1 > 1) {
+      c[ldc * (j + 1) + (i + 3)] = reduce_sum(vc31) + summs[3][1];
+    }
+    if constexpr (B1 > 2) {
+      c[ldc * (j + 2) + (i + 3)] = reduce_sum(vc32) + summs[3][2];
+    }
+    if constexpr (B1 > 3) {
+      c[ldc * (j + 3) + (i + 3)] = reduce_sum(vc33) + summs[3][3];
+    }
   }
 }
-
 
 } // namespace impl
 
@@ -931,7 +975,8 @@ void lamm_mul_mat(const struct ggml_compute_params *params,
 
   enum ggml_type const vec_dot_type =
       ggml_internal_get_type_traits(src0->type).vec_dot_type;
-  const size_t row_size = ggml_row_size(vec_dot_type, ne10) / ggml_type_size(vec_dot_type);
+  const size_t row_size =
+      ggml_row_size(vec_dot_type, ne10) / ggml_type_size(vec_dot_type);
 
   impl::Matrix A, B, C;
 
@@ -943,7 +988,9 @@ void lamm_mul_mat(const struct ggml_compute_params *params,
   B.type = src1->type;
   B.row = ne00 / ggml_blck_size(src0->type);
   B.col = ne11;
-  B.ld = (src1->type == vec_dot_type) ? (nb11 / ggml_type_size(src1->type)) : (row_size / ggml_type_size(vec_dot_type));
+  B.ld = (src1->type == vec_dot_type)
+             ? (nb11 / ggml_type_size(src1->type))
+             : (row_size / ggml_type_size(vec_dot_type));
 
   C.type = dst->type;
   C.row = ne01;
@@ -963,7 +1010,8 @@ void lamm_mul_mat(const struct ggml_compute_params *params,
       if (src1->type == vec_dot_type) {
         B.data = (char *)src1->data + i12 * nb12 + i13 * nb13;
       } else {
-        B.data = (char *)(params->wdata) + (i12*ne11 + i13*ne12*ne11) * row_size;
+        B.data = (char *)(params->wdata) +
+                 (i12 * ne11 + i13 * ne12 * ne11) * row_size;
       }
       C.data = (char *)dst->data + i12 * nb2 + i13 * nb3;
       gemm_func(A, B, C, params->ith, params->nth);

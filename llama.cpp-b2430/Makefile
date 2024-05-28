@@ -109,11 +109,6 @@ MK_CFLAGS    = -std=c11   -fPIC
 MK_CXXFLAGS  = -std=c++11 -fPIC
 MK_NVCCFLAGS = -std=c++11
 
-# flags for profiling
-ifdef DISABLE_SIMD
-$(info SIMD is disabled)
-endif
-
 # -Ofast tends to produce faster code, but may not be available for some compilers.
 ifdef LLAMA_FAST
 MK_CFLAGS     += -Ofast
@@ -293,11 +288,6 @@ ifdef RISCV
 
 else
 ifeq ($(UNAME_M),$(filter $(UNAME_M),x86_64 i686 amd64))
-	ifdef DISABLE_SIMD
-	# Disable CPU extensions:
-	MK_CFLAGS     += -mno-fma -mno-f16c -mno-avx -mno-ssse3
-	MK_CXXFLAGS   += -mno-fma -mno-f16c -mno-avx -mno-ssse3
-	else
 	# Use all CPU extensions that are available:
 	MK_CFLAGS     += -march=native -mtune=native
 	HOST_CXXFLAGS += -march=native -mtune=native
@@ -309,7 +299,6 @@ ifeq ($(UNAME_M),$(filter $(UNAME_M),x86_64 i686 amd64))
 	# Usage SSSE3-only (Not is SSE3!)
 	#MK_CFLAGS   += -mssse3
 	#MK_CXXFLAGS += -mssse3
-	endif
 endif
 
 ifneq '' '$(findstring mingw,$(shell $(CC) -dumpmachine))'
@@ -372,14 +361,8 @@ ifneq ($(filter ppc64le%,$(UNAME_M)),)
 endif
 
 ifneq ($(filter loongarch64%,$(UNAME_M)),)
-	ifdef DISABLE_SIMD
-	MK_CFLAGS   += -mno-lasx
-	MK_CXXFLAGS += -mno-lasx
-
-	else
 	MK_CFLAGS   += -mlasx
 	MK_CXXFLAGS += -mlasx
-endif
 endif
 
 endif
@@ -617,7 +600,7 @@ OBJS += $(LOONGARCH_SRCDIR)/loongarch_matmul.o
 lamm: $(LOONGARCH_SRCDIR)/loongarch_matmul.o
 
 $(LOONGARCH_SRCDIR)/loongarch_matmul.o: $(LOONGARCH_SRCDIR)/loongarch_matmul.cpp $(LOONGARCH_SRCDIR)/loongarch_matmul.h
-	$(CXX) $(CXXFLAGS) -std=c++17 $(LAMM_FLAGS) -c $< -o $@ 
+	$(CXX) $(CXXFLAGS) -std=c++17 $(LAMM_FLAGS) -c $< -o $@
 endif
 
 GF_CC := $(CC)
