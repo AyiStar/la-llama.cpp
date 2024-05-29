@@ -2,10 +2,11 @@
 
 LLAMA_CPP_DIR = ./llama.cpp-b2430
 SRC_DIR = ./src
-TEST_DIR = ./tests
+TEST_DIR = ./test
 
 ifdef DEBUG
 export LLAMA_DEBUG = 1
+LAMM_FLAGS += -DLAMM_DEBUG
 endif
 
 ifndef NLA_LLAMA
@@ -25,18 +26,18 @@ endif
 
 export LAMM_FLAGS
 
-.PHONY: mm_bench
-mm_bench: $(SRC_DIR)/loongarch_matmul.o
+.PHONY: benchmark
+benchmark: $(SRC_DIR)/loongarch_matmul.o
 	$(MAKE) -C $(LLAMA_CPP_DIR) la-benchmark-matmult $(MK_FORCE) -j8
-
-$(SRC_DIR)/loongarch_matmul.o:
-	$(MAKE) -C $(LLAMA_CPP_DIR) lamm
 
 .PHONY: main
 main: $(SRC_DIR)/loongarch_matmul.o
 	$(MAKE) -C $(LLAMA_CPP_DIR) main $(MK_FORCE) -j8
-	cp $(LLAMA_CPP_DIR)/main $(TEST_DIR)
+	cp $(LLAMA_CPP_DIR)/main $(TEST_DIR)/main
+
+$(SRC_DIR)/loongarch_matmul.o:
+	$(MAKE) -C $(LLAMA_CPP_DIR) lamm
 
 .PHONY: clean
 clean:
-	rm -f $(SRC_DIR)/*.o $(SRC_DIR)/la-benchmark-matmult
+	rm -f $(SRC_DIR)/*.o $(TEST_DIR)/la-benchmark-matmult $(TEST_DIR)/main

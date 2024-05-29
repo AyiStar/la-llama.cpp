@@ -24,6 +24,13 @@ constexpr int kOptLevel = LAMM_OPT_LEVEL;
 constexpr int kOptLevel = 3;
 #endif
 
+// debug control
+#if defined(LAMM_DEBUG)
+constexpr bool kDebug = true;
+#else
+constexpr bool kDebug = false;
+#endif
+
 // abstraction for loongarch_asx SIMD intrinsics
 namespace simd {
 
@@ -245,8 +252,10 @@ void gemm(const Matrix &A, const Matrix &B, const Matrix &C, int ith, int nth) {
 template <ggml_type dtype>
 LA_INLINE void gemm_naive(const Matrix &A, const Matrix &B, const Matrix &C,
                           int ith, int nth) {
-  if (ith == 0) {
-    std::cout << "naive implementation called" << std::endl;
+  if constexpr (kDebug) {
+    if (ith == 0) {
+      std::cout << "naive implementation called with (" << A.row << ", " << A.col << ", " << B.col << ")" << std::endl;
+    }
   }
 
   int M = C.row, N = C.col, K = A.col;
@@ -285,7 +294,7 @@ LA_INLINE void gemm_naive(const Matrix &A, const Matrix &B, const Matrix &C,
     auto *c = (float *)(C.data);
     for (int i = job_start; i < job_end; i++) {
       for (int j = 0; j < N; j++) {
-        float sum = 0;
+        float sum = 0.0;
         for (int k = 0; k < K; k++) {
           const auto *aik = a + (i * lda + k);
           const auto *bjk = b + (j * ldb + k);
@@ -302,7 +311,17 @@ LA_INLINE void gemm_naive(const Matrix &A, const Matrix &B, const Matrix &C,
           // GGML_FP16_TO_FP32(bjk->s), i, j, k);
         }
         c[j * ldc + i] = sum;
-        // printf("C[%d, %d] = %f\n", i, j, sum);
+        if constexpr (kDebug) {
+          printf("C[%d, %d] = %f\n", i, j, sum);
+          // double check
+          float ref_dot_ret = 0;
+          ggml_vec_dot_q4_1_q8_1(K * Q, &ref_dot_ret, 0, a + (i * lda), 0, b + (j * ldb), 0, 1);
+          if (std::abs(ref_dot_ret - c[j * ldc + i]) > 1e-3) {
+            std::cerr << "q4_1_q8_1 vec dot error: " << c[j * ldc + i] << " != " << ref_dot_ret << std::endl;
+            assert(false);
+          }
+        }
+        
       }
     }
     return;
@@ -316,8 +335,10 @@ LA_INLINE void gemm_simd(const Matrix &A, const Matrix &B, const Matrix &C,
   int64_t lda{A.ld}, ldb{B.ld}, ldc{C.ld};
 
   // simd implementation
-  if (ith == 0) {
-    std::cout << "SIMD implementation called" << std::endl;
+  if constexpr (kDebug) {
+    if (ith == 0) {
+      std::cout << "SIMD implementation called" << std::endl;
+    }
   }
   int M = C.row, N = C.col, K = A.col;
   assert(M == A.row && N == B.col && K == B.row);
@@ -387,8 +408,10 @@ LA_INLINE void gemm_block_simd(const Matrix &A, const Matrix &B,
                                const Matrix &C, int ith, int nth) {
 
   // block and simd implementation
-  if (ith == 0) {
-    std::cout << "Block SIMD implementation called" << std::endl;
+  if constexpr (kDebug) {
+    if (ith == 0) {
+      std::cout << "Block SIMD implementation called" << std::endl;
+    }
   }
   int M = C.row, N = C.col, K = A.col;
   assert(M == A.row && N == B.col && K == B.row);
@@ -465,9 +488,6 @@ LA_INLINE void gemm_block_kernel(const float *a, const float *b, float *c,
 
   static_assert(B0 > 0 && B0 <= 5);
   static_assert(B1 > 0 && B1 <= 5);
-
-  // std::cout << "calc (" << i << ", " << j << ") with kernel <" << B0 << ", "
-  // << B1 << ">" << std::endl;
 
   using namespace simd;
   [[maybe_unused]] vreg_t vc00 = {0}, vc01 = {0}, vc02 = {0}, vc03 = {0},
@@ -924,12 +944,14 @@ bool lamm_can_mul_mat(const struct ggml_compute_params *params,
   auto src0 = dst->src[0];
   auto src1 = dst->src[1];
 
-  // contiguous
+  // contiguous check
   const bool src1_cont = ggml_is_contiguous(src1);
   enum ggml_type const vec_dot_type =
       ggml_internal_get_type_traits(src0->type).vec_dot_type;
-  const bool src1_wdata = (src1->type != vec_dot_type);
-  if (!src1_cont && !src1_wdata) {
+  if ((src1->type == vec_dot_type) && !src1_cont) {
+    return false;
+  }
+  if (src1->nb[0] != ggml_type_size(src1->type)) {
     return false;
   }
 
@@ -943,8 +965,7 @@ bool lamm_can_mul_mat(const struct ggml_compute_params *params,
   };
   const int num_supported_types =
       sizeof(supported_types) / sizeof(supported_types[0]);
-  enum ggml_type type0 = src0->type,
-                 type1 = (src1_wdata ? vec_dot_type : src1->type);
+  enum ggml_type type0 = src0->type, type1 = vec_dot_type;
   bool support = false;
   for (int i = 0; i < num_supported_types; i++) {
     if (type0 == supported_types[i][0] && type1 == supported_types[i][1]) {
@@ -953,6 +974,7 @@ bool lamm_can_mul_mat(const struct ggml_compute_params *params,
     }
   }
   if (!support) {
+    // std::cout << "data type not supported" << std::endl;
     return false;
   }
 
@@ -985,7 +1007,7 @@ void lamm_mul_mat(const struct ggml_compute_params *params,
   A.col = ne00 / ggml_blck_size(src0->type);
   A.ld = nb01 / ggml_type_size(src0->type);
 
-  B.type = src1->type;
+  B.type = vec_dot_type;
   B.row = ne00 / ggml_blck_size(src0->type);
   B.col = ne11;
   B.ld = (src1->type == vec_dot_type)
@@ -1014,6 +1036,11 @@ void lamm_mul_mat(const struct ggml_compute_params *params,
                  (i12 * ne11 + i13 * ne12 * ne11) * row_size;
       }
       C.data = (char *)dst->data + i12 * nb2 + i13 * nb3;
+      // if (A.type == GGML_TYPE_F32) {
+      //   impl::gemm<GGML_TYPE_F32>(A, B, C, params->ith, params->nth);
+      // } else {
+      //   impl::gemm<GGML_TYPE_Q4_1>(A, B, C, params->ith, params->nth);
+      // }
       gemm_func(A, B, C, params->ith, params->nth);
     }
   }

@@ -26,9 +26,9 @@ a.out
 .clang-tidy
 .vs/
 .idea/
+.vscode/
 draft/
 core
 
-.vscode/**/*
-!.vscode/settings.json
-!.vscode/c_cpp_properties.json
+model_weights/*
+!model_weights/*.py
