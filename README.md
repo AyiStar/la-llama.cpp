@@ -166,58 +166,8 @@ using vreg_t = __m256;  // vector register type
 using ivreg_t = __m256i;  // integer vector register type
 
 #if defined(__loongarch_asx)
+...
 
-#ifdef __clang__
-#define VREGS_PREFIX "$vr"
-#define XREGS_PREFIX "$xr"
-#else // GCC
-#define VREGS_PREFIX "$f"
-#define XREGS_PREFIX "$f"
-#endif
-#define __ALL_REGS "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31"
-
-typedef union
-{
-    int32_t i;
-    float f;
-} FloatInt;
-
-LA_INLINE vreg_t vset(const float val) {
-  FloatInt fi_tmpval = {.f = val};
-  return (__m256)__lasx_xvreplgr2vr_w(fi_tmpval.i);
-}
-
-LA_INLINE ivreg_t lasx_set_q(__m128i inhi, __m128i inlo)
-{
-    __m256i out;
-    __asm__ volatile (
-        ".irp i," __ALL_REGS                "\n\t"
-        " .ifc %[hi], " VREGS_PREFIX "\\i    \n\t"
-        "  .irp j," __ALL_REGS              "\n\t"
-        "   .ifc %[lo], " VREGS_PREFIX "\\j  \n\t"
-        "    xvpermi.q $xr\\i, $xr\\j, 0x20  \n\t"
-        "   .endif                           \n\t"
-        "  .endr                             \n\t"
-        " .endif                             \n\t"
-        ".endr                               \n\t"
-        ".ifnc %[out], %[hi]                 \n\t"
-        ".irp i," __ALL_REGS                "\n\t"
-        " .ifc %[out], " XREGS_PREFIX "\\i   \n\t"
-        "  .irp j," __ALL_REGS              "\n\t"
-        "   .ifc %[hi], " VREGS_PREFIX "\\j  \n\t"
-        "    xvori.b $xr\\i, $xr\\j, 0       \n\t"
-        "   .endif                           \n\t"
-        "  .endr                             \n\t"
-        " .endif                             \n\t"
-        ".endr                               \n\t"
-        ".endif                              \n\t"
-        : [out] "=f" (out), [hi] "+f" (inhi)
-        : [lo] "f" (inlo)
-    );
-    return out;
-}
-
-// x + y: f32
 LA_INLINE vreg_t add(vreg_t x, vreg_t y) { return __lasx_xvfadd_s(x, y); }
 
 // x * y + z: f32
@@ -231,7 +181,7 @@ LA_INLINE vreg_t sub(vreg_t x, vreg_t y) { return __lasx_xvfsub_s(x, y); }
 // x * y: f32
 LA_INLINE vreg_t mul(vreg_t x, vreg_t y) { return __lasx_xvfmul_s(x, y); }
 
-// vector -> f32
+// sum(vector) -> f32
 LA_INLINE float reduce_sum(vreg_t x) {
   float res {0};
   float *tmp_p = (float *)&x;
@@ -651,12 +601,12 @@ LA_INLINE void gemm_block_kernel(const block_q4_1 *a, const block_q8_1 *b, float
 在开发过程中，我们尽量保持plug-in的原则，在原项目目录（`llama.cpp-b2430/`）内只对构建系统（Makefile）和一些包含条件编译的代码（用于插入我们的工作）进行必要的更改，大部分真正的开发工作都在 `src/` 目录中进行，其中声明的两个函数 `lamm_can_mul_mat()` 和 `lamm_mul_mat()` 被插入至 `llama.cpp-b2430/ggml.c` 中的GEMM执行调度函数 `ggml_compute_forward_mul_mat()` 来达到优化的目的。  
 此外，我们在编译过程中加入 `LAMM_OPT_LEVEL` 宏来控制优化水平(LAMM表示LoongArch Matrix Multiplication)，便于测试比较：
 - `LAMM_OPT_LEVEL=0`：不会尝试调用本项目代码，性能等于原项目水平（加入了龙芯团队SIMD优化的PR）；
-- `LAMM_OPT_LEVEL=1`: 调用本项目提供的基准代码，一个naive的GEMM实现，定义在 `src/loongarch_matmul.cpp` 中的 `gemm_naive()`；
+- `LAMM_OPT_LEVEL=1`: 调用本项目提供的基准代码，一个naive的GEMM实现，定义在 `src/loongarch_matmul.cpp` 中的 `gemm_naive()` ，性能等于直接移植llama.cpp，不做任何平台优化；
 - `LAMM_OPT_LEVEL=2`: 调用本项目实现的SIMD优化代码，定义在 `src/loongarch_matmul.cpp` 中的 `gemm_simd()`；
 - `LAMM_OPT_LEVEL=3`: 调用本项目实现的SIMD+Cache优化代码，定义在 `src/loongarch_matmul.cpp` 中的 `gemm_block_simd()`.
 
 ### 4.3 编译测试
-本项目在根目录提供了 `Makefile` 来完成编译，其会递归调用 `llama.cpp-b2430` ，包含两个target：
+本项目在根目录提供了 `Makefile` 来完成编译(会递归调用 `llama.cpp-b2430/Makefile` )，包含两个target：
 1. `benchmark`: 默认target，会在 `test/` 下编译出可执行文件 `la-benchmark-matmult`，用于测试F32和Q4_1矩阵乘法的FLOPS；
 2. `main`：会在 `test/` 下编译出可执行文件 `main`，用于测试模型推理速度。
 
@@ -695,9 +645,27 @@ make clean && make main LAMM_OPT_LEVEL=[0|1|2|3]
 
 #### 4.4.1 矩阵乘法测试结果
 
+| GEMM (gFLOPS)            | F32 w/ t=1 | F32 w/ t=2 | F32 w/ t=4 | Q4_1 w/ t=1 | Q4_1 w/ t=2 | Q4_1 w/ t=4 |
+| ------------------------ | ---------- | ---------- | ---------- | ----------- | ----------- | ----------- |
+| 直接移植                 | 1.67       | 3.34       | 6.67       | 4.91        | 9.77        | 18.96       |
+| SIMD优化（龙芯团队）     | 12.89      | 24.71      | 44.11      | 23.34       | 46.17       | 87.84       |
+| SIMD优化（本团队）       | 8.13       | 16.04      | 31.72      | 26.03       | 51.65       | 88.42       |
+| SIMD+Cache优化（本团队） | **59.34**  | **85.66**  | **128.46** | **35.32**   | **70.00**   | **112.76**  |
+
 
 
 #### 4.4.2 模型推理测试结果
+
+| Meta-LLaMA2-7B ()        | F32 prompt evaluation | F32 text generation | Q4_1 prompt evaluation | Q4_1 text generation |
+| ------------------------ | --------------------- | ------------------- | ---------------------- | -------------------- |
+| 直接移植                 |                       |                     |                        |                      |
+| SIMD优化（龙芯团队）     |                       |                     |                        |                      |
+| SIMD优化（本团队）       |                       |                     |                        |                      |
+| SIMD+Cache优化（本团队） |                       |                     |                        |                      |
+
+
+
+
 
 
 ## 5. 未来工作与收获总结
