@@ -72,4 +72,4 @@ Benchmark goes along with optimization because we always want to know the exact 
 
 ### Finish Stage
 Output a well-organized technical report.
-- [ ] Compete technical report.
+- [x] Compete technical report.

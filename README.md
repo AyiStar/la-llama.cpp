@@ -249,8 +249,6 @@ for (int i = job_start; i < job_end; i++) {
 }
 ```
 
-相比直接移植的版本，在3A6000上可以获得[]倍的FLOPS（实验细节见第4章）。
-
 #### 3.3.3  Q4_1量化计算的SIMD优化
 
 类似地，我们针对Q4_1的GEMM进行了SIMD优化，核心代码如下：
@@ -277,8 +275,6 @@ for (int i = job_start; i < job_end; i++) {
   }
 }
 ```
-
-相比直接移植的版本，在3A6000上可以获得[]倍的FLOPS（实验细节见第4章）。
 
 ### 3.4 Cache优化
 
@@ -413,7 +409,7 @@ LA_INLINE void gemm_block_kernel(const float *a, const float *b, float *c, int64
   }
 }
 ```
-以上代码可以实现`5x5`以内的分块，因为我们认为更大的块所需的向量寄存器会远超32个。
+以上代码可以实现`5x5`以内的分块，因为我们认为更大的分块会需要过多的向量寄存器。
 
 
 #### 3.3.2 Q4_1量化计算的Cache优化
@@ -623,17 +619,19 @@ HF_TOKEN=[YOUR_TOKEN] python llama_weights_download.py
 ```
 然后，用llama.cpp提供的程序将下载的模型文件转成F32/Q4_1格式的GGUF文件：
 ```bash
+# prerequisite
+make clean && make src/loongarch_matmul.o LAMM_OPT_LEVEL=0
 cd llama.cpp-b2430/
-make -j16
-pip install -r requirements.txt
+make quantize -j8 LLAMA_LOONGARCH=1
+pip install -r requirements/requirements-convert.txt
+# convert & quantize
 python convert.py ../model_weights/Meta-Llama-2-7b --outfile ../model_weights/Meta-Llama-2-7B.F32.gguf --outtype f32
-./quantize ../model_weights/llama2-7b.F32.gguf ../model_weights/llama2-7B.Q4_1.gguf Q4_1
+./quantize ../model_weights/Meta-Llama-2-7B.F32.gguf ../model_weights/Meta-Llama-2-7B.Q4_1.gguf Q4_1
 ```
 最后，编译 `main` 并运行相应的GGUF文件进行推理：
 ```bash
-# 在项目根目录
 make clean && make main LAMM_OPT_LEVEL=[0|1|2|3]
-./test/main -m model_weights/llama2-7B.Q4_1.gguf -t 4 -n 512 -p "Building a website can be done in 10 simple steps:\nStep 1:"
+./test/main -m model_weights/Meta-Llama-2-[7B|13B].[F32|Q4_1].gguf -t 4 -n 512 -p "Building a website can be done in 10 simple steps:\nStep 1:"
 ```
 
 ### 4.4 测试结果
@@ -641,30 +639,41 @@ make clean && make main LAMM_OPT_LEVEL=[0|1|2|3]
 矩阵乘法的基准代码在 `test/la-benchmark-matmult.cpp` ，其修改自 llama.cpp 原项目中的 `examples/benchmark/benchmark-matmult.cpp` ，没有做实验设定上的修改，因此测试结果可直接与社区报告的结果进行比较。该任务的测量指标是GFLOPS。  
 模型推理则直接用 llama.cpp 项目中的 `examples/main/main.cpp` 进行推理。  
 
-对每一个测试任务，都分别用F32和Q4_1两种数据格式进行测试，且分别以 `LAMM_OPT_LEVEL=0,1,2,3` 进行对比。
+对矩阵乘法任务，分别用F32和Q4_1两种数据格式进行测试，以gFLOPS作为衡量指标；
+对模型推理任务，使用 `Meta-LLaMA-2-7B` 和 `Meta-LLaMA-2-13B` 两种模型进行推理，以模型在prompt evaluation和text generation两阶段的token吞吐量作为衡量指标。由于F32格式的模型已经无法装进16G内存，因此，我们只进行Q4_1格式的量化推理（这也是llama.cpp项目的核心目标）。
+
+对每个任务，都进行如下三组对比：
+1. 直接移植：无任何龙芯平台特定优化，等价于 `LAMM_OPT_LEVEL=1` 的编译结果;
+2. SIMD优化：包含SIMD优化的结果，这里直接使用龙芯团队的PR作为对比，等价于 `LAMM_OPT_LEVEL=0` 的编译结果；
+3. SIMD+Cache优化：包含本团队实现的SIMD+Cache优化结果，等价于 `LAMM_OPT_LEVEL=3` 的编译结果。
+
+对每个任务，分别测试单线程(t=1)和多线程(t=2/4)下的正确性及性能。
 
 #### 4.4.1 矩阵乘法测试结果
 
-| GEMM (gFLOPS)            | F32 w/ t=1 | F32 w/ t=2 | F32 w/ t=4 | Q4_1 w/ t=1 | Q4_1 w/ t=2 | Q4_1 w/ t=4 |
+| GEMM (gFLOPS)            | F32 (t=1) | F32 (t=2) | F32 (t=4) | Q4_1 (t=1) | Q4_1 (t=2) | Q4_1 (t=4) |
 | ------------------------ | ---------- | ---------- | ---------- | ----------- | ----------- | ----------- |
 | 直接移植                 | 1.67       | 3.34       | 6.67       | 4.91        | 9.77        | 18.96       |
-| SIMD优化（龙芯团队）     | 12.89      | 24.71      | 44.11      | 23.34       | 46.17       | 87.84       |
-| SIMD优化（本团队）       | 8.13       | 16.04      | 31.72      | 26.03       | 51.65       | 88.42       |
-| SIMD+Cache优化（本团队） | **59.34**  | **85.66**  | **128.46** | **35.32**   | **70.00**   | **112.76**  |
+| SIMD优化     | 12.89      | 24.71      | 44.11      | 23.34       | 46.17       | 87.84       |
+| SIMD+Cache优化 | **59.34**  | **85.66**  | **128.46** | **35.32**   | **70.00**   | **112.76**  |
 
+实验结果表明，本团队所作优化，在llama.cpp中矩阵乘法计算上实现的加速，相比直接移植以及龙芯团队做的SIMD优化，都具有明显优势。
 
 
 #### 4.4.2 模型推理测试结果
 
-| Meta-LLaMA2-7B ()        | F32 prompt evaluation | F32 text generation | Q4_1 prompt evaluation | Q4_1 text generation |
-| ------------------------ | --------------------- | ------------------- | ---------------------- | -------------------- |
-| 直接移植                 |                       |                     |                        |                      |
-| SIMD优化（龙芯团队）     |                       |                     |                        |                      |
-| SIMD优化（本团队）       |                       |                     |                        |                      |
-| SIMD+Cache优化（本团队） |                       |                     |                        |                      |
+| Meta-LLaMA-2-7B (Tokens/Sec) | Q4_1 prompt evaluation (t=1)| Q4_1 text generation (t=1)| Q4_1 prompt evaluation (t=4)| Q4_1 text generation (t=4)|
+| ------------------------  | --------------------- | ------------------- | ---------------------- | -------------------- |
+| 直接移植                   | 0.37                  | 0.36                | 1.44                   | 1.37                 |
+| SIMD优化                   | 1.48                  | 1.29                |  5.62                 | 3.54                  |
+| SIMD+Cache优化             | **2.14**                  | **1.47**                |  **8.32**                  | **3.79**                 |
 
 
-
+| Meta-LLaMA2-13B (Tokens/Sec) | Q4_1 prompt evaluation (t=1)| Q4_1 text generation (t=1)| Q4_1 prompt evaluation (t=4)| Q4_1 text generation (t=4)|
+| ------------------------  | --------------------- | ------------------- | ---------------------- | -------------------- |
+| 直接移植                   | 0.19                  | 0.19                | 0.74                   | 0.71                 |
+| SIMD优化                   | 0.77                  | 0.69                | 2.99                   | 2.02                 |
+| SIMD+Cache优化             |  **1.16**                 | **0.74**                | **4.50**                   | **2.16**                 |
 
 
 
