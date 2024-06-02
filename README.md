@@ -702,26 +702,33 @@ make clean && make main LAMM_OPT_LEVEL=[0|1|2|3]
 | Meta-LLaMA-2-7B Inference (Tokens/Sec) | Q4_1 prompt evaluation (t=1)| Q4_1 text generation (t=1)| Q4_1 prompt evaluation (t=4)| Q4_1 text generation (t=4)|
 | ------------------------  | --------------------- | ------------------- | ---------------------- | -------------------- |
 | 直接移植性能(LAMM_OPT_LEVEL=1)                   | 0.37               | 0.36                | 1.44                  | 1.37                 |
-| SIMD优化(LAMM_OPT_LEVEL=2)                   | 1.48                  | 1.29                |  5.62                 | 3.54                  |
-| SIMD+Cache优化(LAMM_OPT_LEVEL=3)             | **2.14**               | **1.47**            |  **8.32**            | **3.79**              |
+| SIMD优化(LAMM_OPT_LEVEL=2)                   | 1.48                  | 1.29                |  6.17                 | 3.30                  |
+| SIMD+Cache优化(LAMM_OPT_LEVEL=3)             | **2.25**               | **1.54**            |  **8.56**            | **3.87**              |
 
 
 | Meta-LLaMA2-13B Inference (Tokens/Sec) | Q4_1 prompt evaluation (t=1)| Q4_1 text generation (t=1)| Q4_1 prompt evaluation (t=4)| Q4_1 text generation (t=4)|
 | ------------------------  | --------------------- | ------------------- | ---------------------- | -------------------- |
 | 直接移植(LAMM_OPT_LEVEL=1)                   | 0.19                  | 0.19                | 0.74                   | 0.71                 |
 | SIMD优化(LAMM_OPT_LEVEL=2)                   | 0.77                  | 0.69                | 2.99                   | 2.02                 |
-| SIMD+Cache优化(LAMM_OPT_LEVEL=3)             |  **1.16**             | **0.74**            | **4.50**               | **2.16**             |
+| SIMD+Cache优化(LAMM_OPT_LEVEL=3)             |  **1.23**             | **0.82**            | **4.79**               | **2.30**             |
 
 实验结果表明，本团队所作优化，在模型推理的吞吐量上可实现3x~6x的加速，其中prompt evaluation阶段的加速效果比text generation阶段更为明显。这是因为，相对来说，前者比后者更计算密集，后者更受制于内存访问。因此，对于直接移植未经优化的代码，prompt evaluation和text generation的推理性能是差不多的，而优化过的代码在text generation在达到瓶颈。访存优化也是下一阶段我们的重点优化目标。
 
 
 ## 5. 相关工作
+llama.cpp是一个关注度很高且社区推动力很强的优秀开源项目。因此，与本项目同期的也有不少相关的优化工作，感谢张福新老师对我们的指点，让我们多学知识，少走弯路。
 
+### 5.1 龙芯团队的CPU优化
+龙芯内部团队针对矩阵乘法中的点积操作做了平台优化且向社区提交了[PR](https://github.com/ggerganov/llama.cpp/pull/6454)。该优化主要做了SIMD指令支持，我们项目中的SIMD工程抽象代码向他们多有借鉴，在此致谢。  
+在其基础上，我们针对矩阵乘法整体做了Cache优化，实现更深入的优化加速，最终比较如下：
 
 | Matrix Multiplication Peformence (gFLOPS)            | F32 (t=1) | F32 (t=2) | F32 (t=4) | Q4_1 (t=1) | Q4_1 (t=2) | Q4_1 (t=4) |
 | ------------------------ | ---------- | ---------- | ---------- | ----------- | ----------- | ----------- |
-| SIMD优化(LAMM_OPT_LEVEL=2)         | 12.89      | 24.71      | 44.11      | 23.34       | 46.17       | 87.84       |
-| SIMD+Cache优化(LAMM_OPT_LEVEL=3)   | **59.34**  | **85.66**  | **128.46** | **39.45**   | **77.00**   | **123.32**  |
+| 龙芯团队PR         | 12.89      | 24.71      | 44.11      | 23.34       | 46.17       | 87.84       |
+| 本项目优化(LAMM_OPT_LEVEL=3)   | **59.34**  | **85.66**  | **128.46** | **39.45**   | **77.00**   | **123.32**  |
+
+### 5.2 Mozilla llamafile团队的优化
+[llamafile](https://github.com/mozilla-Ocho/llamafile)是Mozilla公司支持的另一个针对模型推理的开源项目，团队中的开发者将部分CPU优化算子贡献到了llama.cpp并提交了[PR](https://github.com/ggerganov/llama.cpp/pull/6414)。其优化思路与我们类似，也是从SIMD加速和Cache优化两个方向。与本项目的主要区别在于，其主要针对Intel/ARM平台进行优化，本项目主要针对龙芯。另外，其实现了Q4_0量化方法的优化，本项目实现了Q4_1。 
 
 ## 6. 未来工作与收获总结
 由于比赛时间和成员精力有限，本阶段所完成的工作距离理想目标还甚有欠缺，无论比赛是否继续，希望能够在未来补足，具体包括：
