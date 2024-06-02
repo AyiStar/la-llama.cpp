@@ -10,7 +10,7 @@
 ## 摘要
 
 * **项目目标**：将llama.cpp移植至龙芯处理器3A6000，并进行软硬件协同优化，加速模型的CPU推理速度，使得以Meta LLaMA为代表的流行的大语言模型能够以可接受的速度运行于龙芯平台；
-* **完成情况**：本项目的规划和进展情况可见[dev.md](dev.md)。截至本阶段，在项目的标准benchmark程序上，相较于开源社区的[最新相关工作](https://github.com/ggerganov/llama.cpp/pull/6454)，达到50%以上的GEMM FLOPS和模型prompt evluation吞吐量提升，并能以流畅的用户体验进行13B参数量的大语言模型推理；
+* **完成情况**：本项目的规划和进展情况可见[dev.md](dev.md)。截至本阶段，较于未经优化的代码，在矩阵乘法benchmark上达到6x~35x的FLOPS加速比，在模型推理上达到3x~6x的token吞吐量加速比，并能以流畅的用户体验进行13B参数量的大语言模型推理；
 * **主要创新**：定位和分析了大语言模型推理的主要性能瓶颈；针对龙芯平台进行了**SIMD**和**Cache**两个方向的计算优化；同时支持**浮点**参数和**量化**参数的运算加速；在3A6000处理器上进行了正确性和性能的标准测试。
 
 本技术报告是对本项目的阶段性总结，也希望为后续工作及相关其他工作提供一些启发，具体包含以下章节：
@@ -18,7 +18,8 @@
 2. 针对龙芯平台的移植工作介绍；
 3. 针对龙芯平台的软硬件协同优化工作介绍；
 4. 项目的工程实现及成果展示；
-5. 未来工作与收获总结。
+5. 相关工作；
+6. 未来工作与收获总结。
 
 
 ## 1. llama.cpp 背景介绍
@@ -183,17 +184,51 @@ LA_INLINE vreg_t sub(vreg_t x, vreg_t y) { return __lasx_xvfsub_s(x, y); }
 // x * y: f32
 LA_INLINE vreg_t mul(vreg_t x, vreg_t y) { return __lasx_xvfmul_s(x, y); }
 
-// sum(vector) -> f32
+// Convert __m256i high part to __m128i
+LA_INLINE __m128i lasx_extracti128_hi(__m256i in)
+{
+    __m128i out;
+    __asm__ volatile (
+        ".irp i," __ALL_REGS                "\n\t"
+        " .ifc %[out], " VREGS_PREFIX "\\i   \n\t"
+        "  .irp j," __ALL_REGS              "\n\t"
+        "   .ifc %[in], " XREGS_PREFIX "\\j  \n\t"
+        "    xvpermi.q $xr\\i, $xr\\j, 0x11  \n\t"
+        "   .endif                           \n\t"
+        "  .endr                             \n\t"
+        " .endif                             \n\t"
+        ".endr                               \n\t"
+        : [out] "=f" (out) : [in] "f" (in)
+    );
+    return out;
+}
+
+LA_INLINE __m128 lasx_extractf128( __m256 a, int pos)
+{
+    __m128 ret;
+    if( pos == 0)
+    {
+       ret = (__m128)lasx_extracti128_lo((__m256i)a);
+    } else {
+       ret = (__m128)lasx_extracti128_hi((__m256i)a);
+    }
+    return ret;
+}
+
+// vector -> f32
 LA_INLINE float reduce_sum(vreg_t x) {
-  float res {0};
-  float *tmp_p = (float *)&x;
-  res = tmp_p[0] + tmp_p[1] + tmp_p[2] + tmp_p[3] + tmp_p[4] + tmp_p[5] +
-        tmp_p[6] + tmp_p[7];
-  return res;
+  __m128 res = lasx_extractf128(x, 1);
+  FloatInt tmp;
+  res = __lsx_vfadd_s(res, lasx_extractf128(x, 0));
+  res = __lsx_vfadd_s(res, (__m128)__lsx_vpickod_d((__m128i)res, (__m128i)res));
+  res = __lsx_vfadd_s(res, (__m128)__lsx_vinsgr2vr_w(__lsx_vldi(0), __lsx_vpickve2gr_w(res, 1), 0));
+  tmp.i = __lsx_vpickve2gr_w(res, 0);
+  return tmp.f;
 }
 
 // load from float*
 LA_INLINE vreg_t load(const float *p) { return (vreg_t)__lasx_xvld(p, 0); }
+
 // load from quantized block
 LA_INLINE ivreg_t load_quants(const block_q4_1 *p) {
   const __m128i lo = __lsx_vld((const __m128i *)(p->qs), 0);
@@ -228,7 +263,7 @@ LA_INLINE vreg_t mul_sum_us8_pairs_float(const ivreg_t ax, const ivreg_t sy) {
 }  // namespace simd
 ```
 
-其中部分代码借鉴了龙芯团队的[相关工作](https://github.com/ggerganov/llama.cpp/pull/6454)。巧合的是，该工作出现在团队成员正在学习LASX指令集的过程中。事实证明，龙芯团队对于LASX的运用比我们要精到得多，我们学到技巧的同时，也省去了大量的工作量，在此也十分感谢张福新老师及时将相关工作进展同步于我们。在此工作的基础上，还我们进行了后续深入的优化（见3.4）。
+其中部分代码借鉴了龙芯团队的[相关工作](https://github.com/ggerganov/llama.cpp/pull/6454)。巧合的是，该工作出现在团队成员正在学习LASX指令集的过程中。事实证明，龙芯团队对于LASX的运用比我们要精到得多，我们学到不少技巧的同时，也省去了大量的工作量，为后续进行更深入的优化提供可能性。在此也十分感谢张福新老师及时将相关工作进展同步于我们。
 
 在实现中，我们还针对AVX2实现了同样的接口，因为其具有和LASX一样的256位向量寄存器，方便在其他平台同步开发测试。
 
@@ -599,10 +634,9 @@ LA_INLINE void gemm_block_kernel(const block_q4_1 *a, const block_q8_1 *b, float
 ### 4.2 工程实现概览
 在开发过程中，我们尽量保持plug-in的原则，在原项目目录（`llama.cpp-b2430/`）内只对构建系统（Makefile）和一些包含条件编译的代码（用于插入我们的工作）进行必要的更改，大部分真正的开发工作都在 `src/` 目录中进行，其中声明的两个函数 `lamm_can_mul_mat()` 和 `lamm_mul_mat()` 被插入至 `llama.cpp-b2430/ggml.c` 中的GEMM执行调度函数 `ggml_compute_forward_mul_mat()` 来达到优化的目的。  
 此外，我们在编译过程中加入 `LAMM_OPT_LEVEL` 宏来控制优化水平(LAMM表示LoongArch Matrix Multiplication)，便于测试比较：
-- `LAMM_OPT_LEVEL=0`：不会尝试调用本项目代码，性能等于原项目水平（加入了龙芯团队SIMD优化的PR）；
-- `LAMM_OPT_LEVEL=1`: 调用本项目提供的基准代码，一个naive的GEMM实现，定义在 `src/loongarch_matmul.cpp` 中的 `gemm_naive()` ，性能等于直接移植llama.cpp，不做任何平台优化；
-- `LAMM_OPT_LEVEL=2`: 调用本项目实现的SIMD优化代码，定义在 `src/loongarch_matmul.cpp` 中的 `gemm_simd()`；
-- `LAMM_OPT_LEVEL=3`: 调用本项目实现的SIMD+Cache优化代码，定义在 `src/loongarch_matmul.cpp` 中的 `gemm_block_simd()`.
+- `LAMM_OPT_LEVEL=1`: 性能等于直接移植llama.cpp，不做任何平台优化，可见 `src/loongarch_matmul.cpp` 中的 `gemm_naive()`；
+- `LAMM_OPT_LEVEL=2`: SIMD优化代码，可见`src/loongarch_matmul.cpp` 中的 `gemm_simd()`；
+- `LAMM_OPT_LEVEL=3`: SIMD+Cache优化代码，可见 `src/loongarch_matmul.cpp` 中的 `gemm_block_simd()`.
 
 ### 4.3 编译测试
 本项目在根目录提供了 `Makefile` 来完成编译(会递归调用 `llama.cpp-b2430/Makefile` )，包含两个target：
@@ -611,7 +645,7 @@ LA_INLINE void gemm_block_kernel(const block_q4_1 *a, const block_q8_1 *b, float
 
 更具体地，要测试矩阵乘法性能，在项目根目录下运行以下指令：
 ```bash
-make clean && make benchmark LAMM_OPT_LEVEL=[0|1|2|3]
+make clean && make benchmark LAMM_OPT_LEVEL=[1|2|3]
 ./test/la-benchmark-matmult
 ```
 要测试模型推理性能，须先下载模型文件，我们在 `model_weights/` 目录下提供了一个Python脚本，会自动从Huggingface下载Meta-Llama-2 的7B和13B模型（依赖`huggingface_hub`库），但注意，LLaMA的下载须申请授权，并获得相应的Token：
@@ -639,51 +673,57 @@ make clean && make main LAMM_OPT_LEVEL=[0|1|2|3]
 
 ### 4.4 测试结果
 我们分别对矩阵乘法和模型推理两个任务进行基准测试。  
-矩阵乘法的基准代码在 `test/la-benchmark-matmult.cpp` ，其修改自 llama.cpp 原项目中的 `examples/benchmark/benchmark-matmult.cpp` ，没有做实验设定上的修改，因此测试结果可直接与社区报告的结果进行比较。该任务的测量指标是GFLOPS。  
+矩阵乘法的基准代码在 `test/la-benchmark-matmult.cpp` ，其修改自 llama.cpp 原项目中的 `examples/benchmark/benchmark-matmult.cpp` ，没有做实验设定上的修改，因此测试结果可直接与社区报告的结果进行比较。  
 模型推理则直接用 llama.cpp 项目中的 `examples/main/main.cpp` 进行推理。  
 
-对矩阵乘法任务，分别用F32和Q4_1两种数据格式进行测试，以gFLOPS作为衡量指标；
-对模型推理任务，使用 `Meta-LLaMA-2-7B` 和 `Meta-LLaMA-2-13B` 两种模型进行推理，以模型在prompt evaluation和text generation两阶段的token吞吐量作为衡量指标。由于F32格式的模型已经无法装进16G内存，因此，我们只进行Q4_1格式的量化推理（这也是llama.cpp项目的核心目标）。
+对矩阵乘法任务，分别用F32和Q4_1两种数据格式进行测试，以gFLOPS(giga fLoating point operations per second)作为衡量指标；
+对模型推理任务，使用 `Meta-LLaMA-2-7B` 和 `Meta-LLaMA-2-13B` 两种模型进行推理，以模型在prompt evaluation和text generation两阶段的token吞吐量作为衡量指标。在F32格式下，最小的7B参数Meta LLaMA 2模型也无法装进16G内存，因此，我们只进行Q4_1格式的量化推理（这也是llama.cpp项目中模型量化技术的重要性体现）。
 
 对每个任务，都进行如下三组对比：
 1. 直接移植：无任何龙芯平台特定优化，等价于 `LAMM_OPT_LEVEL=1` 的编译结果;
-2. SIMD优化：包含SIMD优化的结果，这里直接使用龙芯团队的PR作为对比，等价于 `LAMM_OPT_LEVEL=0` 的编译结果；
-3. SIMD+Cache优化：包含本团队实现的SIMD+Cache优化结果，等价于 `LAMM_OPT_LEVEL=3` 的编译结果。
+2. SIMD优化：包含SIMD优化的结果，等价于 `LAMM_OPT_LEVEL=2` 的编译结果；
+3. SIMD+Cache优化：包含SIMD+Cache优化结果，等价于 `LAMM_OPT_LEVEL=3` 的编译结果。
 
 对每个任务，分别测试单线程(t=1)和多线程(t=2/4)下的正确性及性能。
 
 #### 4.4.1 矩阵乘法测试结果
 
-| GEMM Benchmark            | F32 (t=1) | F32 (t=2) | F32 (t=4) | Q4_1 (t=1) | Q4_1 (t=2) | Q4_1 (t=4) |
+| Matrix Multiplication Peformence (gFLOPS)            | F32 (t=1) | F32 (t=2) | F32 (t=4) | Q4_1 (t=1) | Q4_1 (t=2) | Q4_1 (t=4) |
 | ------------------------ | ---------- | ---------- | ---------- | ----------- | ----------- | ----------- |
-| 直接移植性能(gFLOPS)      | 1.67       | 3.34       | 6.67       | 4.91        | 9.77        | 18.96       |
-| SIMD优化(gFLOPS)         | 12.89      | 24.71      | 44.11      | 23.34       | 46.17       | 87.84       |
-| SIMD+Cache优化(gFLOPS)   | **59.34**  | **85.66**  | **128.46** | **35.32**   | **70.00**   | **112.76**  |
-| 加速比                   | 35.53/4.60 | 25.65/3.47 | 19.26/2.91 | 7.19/1.51   | 7.16/1.52   | 5.94/1.28   |
+| 直接移植性能(LAMM_OPT_LEVEL=1)      | 1.67       | 3.34       | 6.67       | 4.91        | 9.77        | 18.96       |
+| SIMD优化(LAMM_OPT_LEVEL=2)         | 12.89      | 24.71      | 44.11      | 25.98       | 51.39       | 88.84       |
+| SIMD+Cache优化(LAMM_OPT_LEVEL=3)   | **59.34**  | **85.66**  | **128.46** | **39.45**   | **77.00**   | **123.32**  |
 
-实验结果表明，本团队所作优化，在llama.cpp中矩阵乘法计算上可实现可观的加速。
+实验结果表明，本团队所作优化，在llama.cpp中矩阵乘法计算上可实现6x~35x的加速。
 
 
 #### 4.4.2 模型推理测试结果
 
-| Meta-LLaMA-2-7B Inference | Q4_1 prompt evaluation (t=1)| Q4_1 text generation (t=1)| Q4_1 prompt evaluation (t=4)| Q4_1 text generation (t=4)|
+| Meta-LLaMA-2-7B Inference (Tokens/Sec) | Q4_1 prompt evaluation (t=1)| Q4_1 text generation (t=1)| Q4_1 prompt evaluation (t=4)| Q4_1 text generation (t=4)|
 | ------------------------  | --------------------- | ------------------- | ---------------------- | -------------------- |
-| 直接移植性能(Tokens/Sec)                   | 0.37               | 0.36                | 1.44                  | 1.37                 |
-| SIMD优化(Tokens/Sec)                   | 1.48                  | 1.29                |  5.62                 | 3.54                  |
-| SIMD+Cache优化(Tokens/Sec)             | **2.14**               | **1.47**            |  **8.32**            | **3.79**              |
-| 加速比                                 | 5.78/1.45              | 4.08/1.14            | 5.78/1.48           | 2.77/1.07             |
+| 直接移植性能(LAMM_OPT_LEVEL=1)                   | 0.37               | 0.36                | 1.44                  | 1.37                 |
+| SIMD优化(LAMM_OPT_LEVEL=2)                   | 1.48                  | 1.29                |  5.62                 | 3.54                  |
+| SIMD+Cache优化(LAMM_OPT_LEVEL=3)             | **2.14**               | **1.47**            |  **8.32**            | **3.79**              |
 
 
-| Meta-LLaMA2-13B Inference | Q4_1 prompt evaluation (t=1)| Q4_1 text generation (t=1)| Q4_1 prompt evaluation (t=4)| Q4_1 text generation (t=4)|
+| Meta-LLaMA2-13B Inference (Tokens/Sec) | Q4_1 prompt evaluation (t=1)| Q4_1 text generation (t=1)| Q4_1 prompt evaluation (t=4)| Q4_1 text generation (t=4)|
 | ------------------------  | --------------------- | ------------------- | ---------------------- | -------------------- |
-| 直接移植(Tokens/Sec)                   | 0.19                  | 0.19                | 0.74                   | 0.71                 |
-| SIMD优化(Tokens/Sec)                   | 0.77                  | 0.69                | 2.99                   | 2.02                 |
-| SIMD+Cache优化(Tokens/Sec)             |  **1.16**             | **0.74**            | **4.50**               | **2.16**             |
-| 加速比                                 | 6.11/1.51              | 3.89/1.07          | 6.08/1.51           | 3.04/1.07             |
+| 直接移植(LAMM_OPT_LEVEL=1)                   | 0.19                  | 0.19                | 0.74                   | 0.71                 |
+| SIMD优化(LAMM_OPT_LEVEL=2)                   | 0.77                  | 0.69                | 2.99                   | 2.02                 |
+| SIMD+Cache优化(LAMM_OPT_LEVEL=3)             |  **1.16**             | **0.74**            | **4.50**               | **2.16**             |
 
-实验结果表明，本团队所作优化，在模型推理的吞吐量上可实现可观的加速，其中prompt evaluation阶段的加速效果比text generation阶段更为明显，这是因为相对来说，前者比后者更计算密集，后者更受制于内存访问。
+实验结果表明，本团队所作优化，在模型推理的吞吐量上可实现3x~6x的加速，其中prompt evaluation阶段的加速效果比text generation阶段更为明显。这是因为，相对来说，前者比后者更计算密集，后者更受制于内存访问。因此，对于直接移植未经优化的代码，prompt evaluation和text generation的推理性能是差不多的，而优化过的代码在text generation在达到瓶颈。访存优化也是下一阶段我们的重点优化目标。
 
-## 5. 未来工作与收获总结
+
+## 5. 相关工作
+
+
+| Matrix Multiplication Peformence (gFLOPS)            | F32 (t=1) | F32 (t=2) | F32 (t=4) | Q4_1 (t=1) | Q4_1 (t=2) | Q4_1 (t=4) |
+| ------------------------ | ---------- | ---------- | ---------- | ----------- | ----------- | ----------- |
+| SIMD优化(LAMM_OPT_LEVEL=2)         | 12.89      | 24.71      | 44.11      | 23.34       | 46.17       | 87.84       |
+| SIMD+Cache优化(LAMM_OPT_LEVEL=3)   | **59.34**  | **85.66**  | **128.46** | **39.45**   | **77.00**   | **123.32**  |
+
+## 6. 未来工作与收获总结
 由于比赛时间和成员精力有限，本阶段所完成的工作距离理想目标还甚有欠缺，无论比赛是否继续，希望能够在未来补足，具体包括：
 1. 对模型推理的进一步优化，例如Cache优化中分块参数（块形状）和分块策略的调优；
 2. 对所有量化方式的优化的全面支持（目前只考虑了Q4_1）；

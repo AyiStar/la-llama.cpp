@@ -105,13 +105,68 @@ LA_INLINE vreg_t sub(vreg_t x, vreg_t y) { return __lasx_xvfsub_s(x, y); }
 // x * y: f32
 LA_INLINE vreg_t mul(vreg_t x, vreg_t y) { return __lasx_xvfmul_s(x, y); }
 
+
+// Convert __m256i low part to __m128i
+LA_INLINE __m128i lasx_extracti128_lo(__m256i in)
+{
+    __m128i out;
+    __asm__ volatile (
+        ".ifnc %[out], %[in]                 \n\t"
+        ".irp i," __ALL_REGS                "\n\t"
+        " .ifc %[out], " VREGS_PREFIX "\\i   \n\t"
+        "  .irp j," __ALL_REGS              "\n\t"
+        "   .ifc %[in], " XREGS_PREFIX "\\j  \n\t"
+        "    vori.b $vr\\i, $vr\\j, 0        \n\t"
+        "   .endif                           \n\t"
+        "  .endr                             \n\t"
+        " .endif                             \n\t"
+        ".endr                               \n\t"
+        ".endif                              \n\t"
+        : [out] "=f" (out) : [in] "f" (in)
+    );
+    return out;
+}
+
+// Convert __m256i high part to __m128i
+LA_INLINE __m128i lasx_extracti128_hi(__m256i in)
+{
+    __m128i out;
+    __asm__ volatile (
+        ".irp i," __ALL_REGS                "\n\t"
+        " .ifc %[out], " VREGS_PREFIX "\\i   \n\t"
+        "  .irp j," __ALL_REGS              "\n\t"
+        "   .ifc %[in], " XREGS_PREFIX "\\j  \n\t"
+        "    xvpermi.q $xr\\i, $xr\\j, 0x11  \n\t"
+        "   .endif                           \n\t"
+        "  .endr                             \n\t"
+        " .endif                             \n\t"
+        ".endr                               \n\t"
+        : [out] "=f" (out) : [in] "f" (in)
+    );
+    return out;
+}
+
+LA_INLINE __m128 lasx_extractf128( __m256 a, int pos)
+{
+    __m128 ret;
+    if( pos == 0)
+    {
+       ret = (__m128)lasx_extracti128_lo((__m256i)a);
+    } else {
+       ret = (__m128)lasx_extracti128_hi((__m256i)a);
+    }
+    return ret;
+}
+
 // vector -> f32
 LA_INLINE float reduce_sum(vreg_t x) {
-  float res{0};
-  float *tmp_p = (float *)&x;
-  res = tmp_p[0] + tmp_p[1] + tmp_p[2] + tmp_p[3] + tmp_p[4] + tmp_p[5] +
-        tmp_p[6] + tmp_p[7];
-  return res;
+  __m128 res = lasx_extractf128(x, 1);
+  FloatInt tmp;
+  res = __lsx_vfadd_s(res, lasx_extractf128(x, 0));
+  res = __lsx_vfadd_s(res, (__m128)__lsx_vpickod_d((__m128i)res, (__m128i)res));
+  res = __lsx_vfadd_s(res, (__m128)__lsx_vinsgr2vr_w(__lsx_vldi(0), __lsx_vpickve2gr_w(res, 1), 0));
+  tmp.i = __lsx_vpickve2gr_w(res, 0);
+  return tmp.f;
 }
 
 // load from float*
