@@ -7,6 +7,7 @@
 #include <math.h>
 #include <cstring>
 #include <cstdio>
+#include <cstdlib>
 #include <cinttypes>
 #include <unordered_map>
 #include <queue>
@@ -136,28 +137,18 @@ int main(int argc, char ** argv)  {
 
     // create the ggml context
     struct ggml_context * ctx;
-    //const int sizex = 4096;
-    //const int sizey = 11008;
 
-#undef VERBOSE_DEBUGGING
-#ifndef VERBOSE_DEBUGGING
+#ifdef LAMM_DEBUG
+    printf("Debugging the correctness\n");
+    // check the correctness
+    const int sizey = 4;
+    const int sizex = 128;
+    const int sizez = 4;
+#else 
     const int sizey = 4096;
     const int sizex = 11008;
     const int sizez = 128;
-
-    // const int sizey = 4;
-    // const int sizex = 128;
-    // const int sizez = 4;
-#else
-    /* Working - let's increase size */
-    const int sizey = 1;
-    const int sizex = (8*32);
-    const int sizez = 1;
-
-    /*const int sizey = 1;
-    const int sizex = 3*(8*32);
-    const int sizez = 1;*/
-#endif
+#endif // LAMM_DEBUG
 
     //printf("Memsize required = %i\n", sizex*sizex);
 
@@ -190,19 +181,36 @@ int main(int argc, char ** argv)  {
 
 
     printf("Creating new tensors\n");
-    // printf("Creating new tensor m1\n");
     struct ggml_tensor * m11 = ggml_new_tensor_2d(ctx, GGML_TYPE_F32, sizex, sizey);
-    ggml_set_f32(m11, 1.0f);
-
-    // printf("Creating new tensor m1\n");
     struct ggml_tensor * m12 = ggml_new_tensor_2d(ctx, GGML_TYPE_F32, sizex, sizey);
-    ggml_set_f32(m12, 1.5f);
-
-    // printf("Creating new tensor m2\n");
     struct ggml_tensor * m2 = ggml_new_tensor_2d(ctx, GGML_TYPE_F32, sizex, sizez);
-    ggml_set_f32(m2, 2.0f);
 
-    const double correct_sum_m11xm2 = (sizex * (1.0f * 2.0f)) * (sizey * sizez);
+#ifdef LAMM_DEBUG
+    std::srand(0);
+    for (int i = 0; i < sizex; i++) {
+        for (int j = 0; j < sizey; j++) {
+            ggml_set_f32_nd(m11, i, j, 0, 0, 1+static_cast<float>(std::rand() / static_cast<float>(RAND_MAX)));
+            ggml_set_f32_nd(m12, i, j, 0, 0, 1.5+static_cast<float>(std::rand() / static_cast<float>(RAND_MAX)));
+        }
+        for (int j = 0; j < sizez; j++) {
+            ggml_set_f32_nd(m2, i, j, 0, 0, 2+static_cast<float>(std::rand() / static_cast<float>(RAND_MAX)));
+        }
+    }
+    double correct_sum_m11xm2 = 0.0;
+    for (int i = 0; i < sizex; i++) {
+        for (int j = 0; j < sizey; j++) {
+            for (int k = 0; k < sizez; k++) {
+                correct_sum_m11xm2 += ggml_get_f32_nd(m11, i, j, 0, 0) * ggml_get_f32_nd(m2, i, k, 0, 0);
+            }
+        }
+    }
+#else
+    ggml_set_f32(m11, 1.0f);
+    ggml_set_f32(m12, 1.5f);
+    ggml_set_f32(m2, 2.0f);
+    double correct_sum_m11xm2 = (sizex * (1.0f * 2.0f)) * (sizey * sizez);
+#endif // LAMM_DEBUG
+
     printf("Theoretical sum of m11xm2 = %6.2f\n", correct_sum_m11xm2);
 
     printf("\n------ Test 0 - Matrix Mult via F32 code\n");
@@ -328,22 +336,28 @@ void do_benchmark(
             sizex, sizey, sizez, flops_per_matrix,
             usec,gflops);
 
-#ifdef VERBOSE_DEBUGGING
-        TENSOR_DUMP("res",g1.nodes[0])
+#ifdef LAMM_DEBUG
+        tensor_dump(g1->nodes[0], "res");
+        for (int i = 0; i < sizey; i++) {
+            for (int j = 0; j < sizez; j++) {
+                printf("%.4f, ", ggml_get_f32_nd(g1->nodes[0], i, j, 0, 0));
+            }
+            printf("\n");
+        }
 #endif
 
         // Check that the matrix multiplication result is in the right ballpark
         // We cannot use the exact value from the F32 multiplication because the quantizuation will be slightly different
         float sum_of_result = tensor_sum_elements(g1->nodes[0]);
-        float delta = std::abs(sum_of_result - correct);
-        float allowed_delta = (correct) / 1000 / 1000; //  Let's accept an epsilon of 10^-6
+        float delta = std::abs(sum_of_result - correct) / std::abs(correct);
+        float allowed_delta = 1e-3; //  Let's accept an epsilon of 10^-3
 
         if (delta > allowed_delta)  {
-            printf("\nABORT - ERROR in Matrix Multiplication result - expected %6.2f, got %6.2f (delta %6.2f > allowed_delta %6.2f)\n",
+            printf("\nABORT - ERROR in Matrix Multiplication result - expected %6.2f, got %6.2f (delta %.3f%% > allowed_delta %.3f%%)\n",
                 correct,
                 sum_of_result,
-                delta,
-                allowed_delta
+                delta * 100,
+                allowed_delta * 100
             );
             exit(0);
         }

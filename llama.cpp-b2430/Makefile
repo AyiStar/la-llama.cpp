@@ -863,7 +863,7 @@ run-benchmark-matmult: benchmark-matmult
 ifdef LLAMA_LOONGARCH
 .PHONY: la-benchmark-matmult
 la-benchmark-matmult: $(LOONGARCH_TESTDIR)/la-benchmark-matmult.cpp build-info.o ggml.o llama.o $(OBJS)
-	$(CXX) $(CXXFLAGS) -c $< -o $(call GET_OBJ_FILE, $<)
+	$(CXX) $(CXXFLAGS) $(LAMM_FLAGS) -c $< -o $(call GET_OBJ_FILE, $<)
 	$(CXX) $(CXXFLAGS) $(filter-out %.h $<,$^) $(call GET_OBJ_FILE, $<) -o $(LOONGARCH_TESTDIR)/$@ $(LDFLAGS)
 endif
 

@@ -4,8 +4,8 @@ LLAMA_CPP_DIR = ./llama.cpp-b2430
 SRC_DIR = ./src
 TEST_DIR = ./test
 
-ifdef DEBUG
-export LLAMA_DEBUG = 1
+ifdef LAMM_DEBUG
+export LLAMA_DEBUG
 LAMM_FLAGS += -DLAMM_DEBUG
 endif
 

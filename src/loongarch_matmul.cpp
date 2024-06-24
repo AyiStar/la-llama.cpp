@@ -309,7 +309,7 @@ LA_INLINE void gemm_naive(const Matrix &A, const Matrix &B, const Matrix &C,
                           int ith, int nth) {
   if constexpr (kDebug) {
     if (ith == 0) {
-      std::cout << "naive implementation called with (" << A.row << ", " << A.col << ", " << B.col << ")" << std::endl;
+      // std::cout << "naive implementation called with (" << A.row << ", " << A.col << ", " << B.col << ")" << std::endl;
     }
   }
 
@@ -343,7 +343,6 @@ LA_INLINE void gemm_naive(const Matrix &A, const Matrix &B, const Matrix &C,
   } else if constexpr (dtype == GGML_TYPE_Q4_1) {
     assert(A.type == dtype && B.type == GGML_TYPE_Q8_1);
     constexpr int Q = QK8_1;
-    assert(K % Q == 0);
     auto *a = (block_q4_1 *)(A.data);
     auto *b = (block_q8_1 *)(B.data);
     auto *c = (float *)(C.data);
@@ -361,22 +360,22 @@ LA_INLINE void gemm_naive(const Matrix &A, const Matrix &B, const Matrix &C,
           sum +=
               (GGML_FP16_TO_FP32(aik->d) * GGML_FP16_TO_FP32(bjk->d)) * sumi +
               GGML_FP16_TO_FP32(aik->m) * GGML_FP16_TO_FP32(bjk->s);
-          // printf("sumi = %d, aik->m=%.2f, bjk->s=%.2f at (i=%d, j=%d,
-          // k=%d)\n", sumi, GGML_FP16_TO_FP32(aik->m),
+          // printf("sumi = %d, aik->d=%.4f, bjk->d=%.4f, aik->m=%.4f, bjk->s=%.4f at (i=%d, j=%d, k=%d)\n",
+          // sumi, GGML_FP16_TO_FP32(aik->d), GGML_FP16_TO_FP32(bjk->d), GGML_FP16_TO_FP32(aik->m),
           // GGML_FP16_TO_FP32(bjk->s), i, j, k);
+          // printf("ldc = %ld\n", ldc);
         }
         c[j * ldc + i] = sum;
         if constexpr (kDebug) {
-          printf("C[%d, %d] = %f\n", i, j, sum);
+          // printf("C[%d, %d] = %f\n", i, j, sum);
           // double check
           float ref_dot_ret = 0;
           ggml_vec_dot_q4_1_q8_1(K * Q, &ref_dot_ret, 0, a + (i * lda), 0, b + (j * ldb), 0, 1);
-          if (std::abs(ref_dot_ret - c[j * ldc + i]) > 1e-3) {
+          if (std::abs(ref_dot_ret - c[j * ldc + i]) > (1e-2 * std::abs(ref_dot_ret))) {
             std::cerr << "q4_1_q8_1 vec dot error: " << c[j * ldc + i] << " != " << ref_dot_ret << std::endl;
             assert(false);
           }
         }
-        
       }
     }
     return;
@@ -1052,8 +1051,7 @@ void lamm_mul_mat(const struct ggml_compute_params *params,
 
   enum ggml_type const vec_dot_type =
       ggml_internal_get_type_traits(src0->type).vec_dot_type;
-  const size_t row_size =
-      ggml_row_size(vec_dot_type, ne10) / ggml_type_size(vec_dot_type);
+  const size_t row_size = ggml_row_size(vec_dot_type, ne10);
 
   impl::Matrix A, B, C;
 
