@@ -23,7 +23,7 @@ The overall directory structure of this project is organized as follows:
 
 ## Plan
 
-Based on the above challenges, the project can be divided into the following 4 stages:
+Based on the above challenges, the project can be divided into the following 4 steps:
 
 ### Setup
 - Task: Build basic environments and get familiar to the codebase.
@@ -50,26 +50,53 @@ Based on the above challenges, the project can be divided into the following 4 s
 
 ## Progress and TODO list
 
-### Setup Stage
-At this stage, we get familiar with the concept of cross compilation, build and 
+### Stage-1
+
+#### Setup
+At this step, we get familiar with the concept of cross compilation, build and 
 - [x] Compile and run original llama.cpp on x86 CPU.
 - [x] Cross compile llama.cpp to RISCV64 and run with QEMU on x86 CPU (refer to https://github.com/ggerganov/llama.cpp/pull/3453).
 - [x] Set up cross compilation tools and QEMU environment for LoongArch.
 
-### Porting Stage
+#### Porting
 - [x] Alter the makefile for LoongArch cross compilation.
 - [x] Cross compile llama.cpp to LoongArch64.
 
-### Optimization Stage
+#### Optimization
 Thanks to [the excellent work from Loongson team](https://github.com/ggerganov/llama.cpp/pull/6454), we have a great oppotunity to learn about SIMD acceleration with LoongArch LSX/LASX vector instruction set. Part of our work are based on them.
 - [x] Identify performance bottleneck in llama.cpp.
 - [x] Add LSX/LASX SIMD acceleration for llama.cpp.
 - [x] Add LASX GEMM acceleration for llama.cpp.
 
-### Benchmark Stage
+#### Benchmark
 Benchmark goes along with optimization because we always want to know the exact improvement.
 - [x] Measure performance improvement on Loongson 3A6000 processor.
 
-### Finish Stage
+#### Finish
 Output a well-organized technical report.
 - [x] Compete technical report.
+
+### Stage-2
+
+#### Code Refactoring
+- [ ] Decouple different quantization.
+- [ ] Abstract blocking logic.
+
+#### Quantization methods
+- [ ] Q2_K
+- [ ] Q4_0
+- [x] Q4_1
+- [ ] Q4_K
+- [ ] Q5_0
+- [ ] Q5_1
+- [ ] Q5_K
+- [ ] Q6_K
+- [ ] Q8_0
+
+#### Benchmarks
+- [ ] Add arguments with type and size.
+- [ ] Prepare more model weights.
+- [ ] Benchmark more models.
+
+#### Autotune
+TBD
