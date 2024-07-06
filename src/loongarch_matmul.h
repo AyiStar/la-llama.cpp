@@ -15,18 +15,11 @@
 extern "C" {
 #endif
 
-bool lamm_can_mul_mat(
-    const struct ggml_compute_params * params,
-    const struct ggml_tensor* dst
-);
+bool lamm_can_mul_mat(const struct ggml_compute_params *params,
+                      const struct ggml_tensor *dst);
 
-
-void lamm_mul_mat(
-    const struct ggml_compute_params * params,
-    struct ggml_tensor * dst
-);
-
-
+void lamm_mul_mat(const struct ggml_compute_params *params,
+                  struct ggml_tensor *dst);
 
 #ifdef __cplusplus
 }

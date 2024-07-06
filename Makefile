@@ -41,3 +41,7 @@ $(SRC_DIR)/loongarch_matmul.o:
 .PHONY: clean
 clean:
 	rm -f $(SRC_DIR)/*.o $(TEST_DIR)/*.o $(TEST_DIR)/la-benchmark-matmult $(TEST_DIR)/main
+
+.PHONY: format
+format:
+	clang-format -i $(SRC_DIR)/*.h $(SRC_DIR)/*.hpp $(SRC_DIR)/*.cpp

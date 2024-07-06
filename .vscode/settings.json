@@ -69,7 +69,10 @@
         "mutex": "cpp",
         "sstream": "cpp",
         "thread": "cpp",
-        "variant": "cpp"
+        "variant": "cpp",
+        "__bit_reference": "cpp",
+        "__hash_table": "cpp",
+        "__node_handle": "cpp"
     },
     "C_Cpp.default.compilerPath": "/usr/bin/g++",
     
