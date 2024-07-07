@@ -75,5 +75,6 @@
         "__node_handle": "cpp"
     },
     "C_Cpp.default.compilerPath": "/usr/bin/g++",
+    "cmake.sourceDirectory": "/root/code/la-llama.cpp/llama.cpp-b2430",
     
 }

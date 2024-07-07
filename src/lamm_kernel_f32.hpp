@@ -50,203 +50,38 @@ void lamm_simd_block_kernel(const float *a, const float *b, float *c,
 
   for (int l = 0; l < K; l += kF32PerVec) {
 
-    if constexpr (B1 > 0) {
-      vb0 = load(b + ldb * (j + 0) + l);
-    }
-    if constexpr (B1 > 1) {
-      vb1 = load(b + ldb * (j + 1) + l);
-    }
-    if constexpr (B1 > 2) {
-      vb2 = load(b + ldb * (j + 2) + l);
-    }
-    if constexpr (B1 > 3) {
-      vb3 = load(b + ldb * (j + 3) + l);
-    }
-    if constexpr (B1 > 4) {
-      vb4 = load(b + ldb * (j + 4) + l);
-    }
-
-    if constexpr (B0 > 0) {
-      va = load(a + lda * (i + 0) + l);
-      if constexpr (B1 > 0) {
-        vc00 = madd(va, vb0, vc00);
-      }
-      if constexpr (B1 > 1) {
-        vc01 = madd(va, vb1, vc01);
-      }
-      if constexpr (B1 > 2) {
-        vc02 = madd(va, vb2, vc02);
-      }
-      if constexpr (B1 > 3) {
-        vc03 = madd(va, vb3, vc03);
-      }
-      if constexpr (B1 > 4) {
-        vc04 = madd(va, vb4, vc04);
-      }
-    }
-
-    if constexpr (B0 > 1) {
-      va = load(a + lda * (i + 1) + l);
-      if constexpr (B1 > 0) {
-        vc10 = madd(va, vb0, vc10);
-      }
-      if constexpr (B1 > 1) {
-        vc11 = madd(va, vb1, vc11);
-      }
-      if constexpr (B1 > 2) {
-        vc12 = madd(va, vb2, vc12);
-      }
-      if constexpr (B1 > 3) {
-        vc13 = madd(va, vb3, vc13);
-      }
-      if constexpr (B1 > 4) {
-        vc14 = madd(va, vb4, vc14);
-      }
-    }
-
-    if constexpr (B0 > 2) {
-      va = load(a + lda * (i + 2) + l);
-      if constexpr (B1 > 0) {
-        vc20 = madd(va, vb0, vc20);
-      }
-      if constexpr (B1 > 1) {
-        vc21 = madd(va, vb1, vc21);
-      }
-      if constexpr (B1 > 2) {
-        vc22 = madd(va, vb2, vc22);
-      }
-      if constexpr (B1 > 3) {
-        vc23 = madd(va, vb3, vc23);
-      }
-      if constexpr (B1 > 4) {
-        vc24 = madd(va, vb4, vc24);
-      }
-    }
-
-    if constexpr (B0 > 3) {
-      va = load(a + lda * (i + 3) + l);
-      if constexpr (B1 > 0) {
-        vc30 = madd(va, vb0, vc30);
-      }
-      if constexpr (B1 > 1) {
-        vc31 = madd(va, vb1, vc31);
-      }
-      if constexpr (B1 > 2) {
-        vc32 = madd(va, vb2, vc32);
-      }
-      if constexpr (B1 > 3) {
-        vc33 = madd(va, vb3, vc33);
-      }
-      if constexpr (B1 > 4) {
-        vc34 = madd(va, vb4, vc34);
-      }
-    }
-
-    if constexpr (B0 > 4) {
-      va = load(a + lda * (i + 4) + l);
-      if constexpr (B1 > 0) {
-        vc40 = madd(va, vb0, vc40);
-      }
-      if constexpr (B1 > 1) {
-        vc41 = madd(va, vb1, vc41);
-      }
-      if constexpr (B1 > 2) {
-        vc42 = madd(va, vb2, vc42);
-      }
-      if constexpr (B1 > 3) {
-        vc43 = madd(va, vb3, vc43);
-      }
-      if constexpr (B1 > 4) {
-        vc44 = madd(va, vb4, vc44);
-      }
-    }
+#define FN(N1)                                                                 \
+  if constexpr (B1 > N1) {                                                     \
+    vb##N1 = load(b + ldb * (j + N1) + l);                                     \
   }
+    LOOP(FN, 5);
+#undef FN
 
-  if constexpr (B1 > 0) {
-    if constexpr (B0 > 0) {
-      c[ldc * (j + 0) + (i + 0)] = reduce_sum(vc00);
-    }
-    if constexpr (B0 > 1) {
-      c[ldc * (j + 0) + (i + 1)] = reduce_sum(vc10);
-    }
-    if constexpr (B0 > 2) {
-      c[ldc * (j + 0) + (i + 2)] = reduce_sum(vc20);
-    }
-    if constexpr (B0 > 3) {
-      c[ldc * (j + 0) + (i + 3)] = reduce_sum(vc30);
-    }
-    if constexpr (B0 > 4) {
-      c[ldc * (j + 0) + (i + 4)] = reduce_sum(vc40);
-    }
+#define INNER_FN(N0, N1)                                                       \
+  if constexpr (B1 > N1) {                                                     \
+    vc##N0##N1 = madd(va, vb##N1, vc##N0##N1);                                 \
   }
-  if constexpr (B1 > 1) {
-    if constexpr (B0 > 0) {
-      c[ldc * (j + 1) + (i + 0)] = reduce_sum(vc01);
-    }
-    if constexpr (B0 > 1) {
-      c[ldc * (j + 1) + (i + 1)] = reduce_sum(vc11);
-    }
-    if constexpr (B0 > 2) {
-      c[ldc * (j + 1) + (i + 2)] = reduce_sum(vc21);
-    }
-    if constexpr (B0 > 3) {
-      c[ldc * (j + 1) + (i + 3)] = reduce_sum(vc31);
-    }
-    if constexpr (B0 > 4) {
-      c[ldc * (j + 1) + (i + 4)] = reduce_sum(vc41);
-    }
+#define OUTER_FN(N0)                                                           \
+  if constexpr (B0 > N0) {                                                     \
+    va = load(a + lda * (i + N0) + l);                                         \
+    LOOP_INNER(INNER_FN, N0, 5);                                               \
   }
-  if constexpr (B1 > 2) {
-    if constexpr (B0 > 0) {
-      c[ldc * (j + 2) + (i + 0)] = reduce_sum(vc02);
-    }
-    if constexpr (B0 > 1) {
-      c[ldc * (j + 2) + (i + 1)] = reduce_sum(vc12);
-    }
-    if constexpr (B0 > 2) {
-      c[ldc * (j + 2) + (i + 2)] = reduce_sum(vc22);
-    }
-    if constexpr (B0 > 3) {
-      c[ldc * (j + 2) + (i + 3)] = reduce_sum(vc32);
-    }
-    if constexpr (B0 > 4) {
-      c[ldc * (j + 2) + (i + 4)] = reduce_sum(vc42);
-    }
+    LOOP(OUTER_FN, 5);
+#undef INNER_FN
+#undef OUTER_FN
+  } // end for
+
+#define INNER_FN(N1, N0)                                                       \
+  if constexpr (B0 > N0) {                                                     \
+    c[ldc * (j + N1) + (i + N0)] = reduce_sum(vc##N0##N1);                     \
   }
-  if constexpr (B1 > 3) {
-    if constexpr (B0 > 0) {
-      c[ldc * (j + 3) + (i + 0)] = reduce_sum(vc03);
-    }
-    if constexpr (B0 > 1) {
-      c[ldc * (j + 3) + (i + 1)] = reduce_sum(vc13);
-    }
-    if constexpr (B0 > 2) {
-      c[ldc * (j + 3) + (i + 2)] = reduce_sum(vc23);
-    }
-    if constexpr (B0 > 3) {
-      c[ldc * (j + 3) + (i + 3)] = reduce_sum(vc33);
-    }
-    if constexpr (B0 > 4) {
-      c[ldc * (j + 3) + (i + 4)] = reduce_sum(vc43);
-    }
+#define OUTER_FN(N1)                                                           \
+  if constexpr (B1 > N1) {                                                     \
+    LOOP_INNER(INNER_FN, N1, 5);                                               \
   }
-  if constexpr (B1 > 4) {
-    if constexpr (B0 > 0) {
-      c[ldc * (j + 4) + (i + 0)] = reduce_sum(vc04);
-    }
-    if constexpr (B0 > 1) {
-      c[ldc * (j + 4) + (i + 1)] = reduce_sum(vc14);
-    }
-    if constexpr (B0 > 2) {
-      c[ldc * (j + 4) + (i + 2)] = reduce_sum(vc24);
-    }
-    if constexpr (B0 > 3) {
-      c[ldc * (j + 4) + (i + 3)] = reduce_sum(vc34);
-    }
-    if constexpr (B0 > 4) {
-      c[ldc * (j + 4) + (i + 4)] = reduce_sum(vc44);
-    }
-  }
+  LOOP(OUTER_FN, 5)
+#undef INNER_FN
+#undef OUTER_FN
 }
 
 #endif // LAMM_KERNEL_F32_HPP

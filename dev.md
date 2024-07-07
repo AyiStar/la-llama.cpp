@@ -79,8 +79,9 @@ Output a well-organized technical report.
 ### Stage-2
 
 #### Code Refactoring
-- [ ] Decouple different quantization.
-- [ ] Abstract blocking logic.
+- [x] Decouple different quantization.
+- [x] Abstract blocking logic.
+- [x] Meta-programming the block kernel with macros.
 
 #### Quantization methods
 - [ ] Q2_K

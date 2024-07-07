@@ -19,11 +19,6 @@ LA_INLINE void lamm_naive_kernel(const block_q4_1 *a, const block_q8_1 *b,
     }
     sum += (GGML_FP16_TO_FP32(aik->d) * GGML_FP16_TO_FP32(bjk->d)) * sumi +
            GGML_FP16_TO_FP32(aik->m) * GGML_FP16_TO_FP32(bjk->s);
-    // printf("sumi = %d, aik->d=%.4f, bjk->d=%.4f, aik->m=%.4f, bjk->s=%.4f at
-    // (i=%d, j=%d, k=%d)\n", sumi, GGML_FP16_TO_FP32(aik->d),
-    // GGML_FP16_TO_FP32(bjk->d), GGML_FP16_TO_FP32(aik->m),
-    // GGML_FP16_TO_FP32(bjk->s), i, j, k);
-    // printf("ldc = %ld\n", ldc);
   }
   c[j * ldc + i] = sum;
 }
@@ -80,196 +75,44 @@ LA_INLINE void lamm_simd_block_kernel(const block_q4_1 *a, const block_q8_1 *b,
 
   for (int k = 0; k < K; k++) {
 
-    if constexpr (B1 > 0) {
-      vb0_qs = load_quants(bj0 + k);
-      vbd0 = vset(GGML_FP16_TO_FP32(bj0[k].d));
-    }
-    if constexpr (B1 > 1) {
-      vb1_qs = load_quants(bj1 + k);
-      vbd1 = vset(GGML_FP16_TO_FP32(bj1[k].d));
-    }
-    if constexpr (B1 > 2) {
-      vb2_qs = load_quants(bj2 + k);
-      vbd2 = vset(GGML_FP16_TO_FP32(bj2[k].d));
-    }
-    if constexpr (B1 > 3) {
-      vb3_qs = load_quants(bj3 + k);
-      vbd3 = vset(GGML_FP16_TO_FP32(bj3[k].d));
-    }
+#define FN(N1)                                                                 \
+  if constexpr (B1 > N1) {                                                     \
+    vb##N1##_qs = load_quants(bj##N1 + k);                                     \
+    vbd##N1 = vset(GGML_FP16_TO_FP32(bj##N1[k].d));                            \
+  }
+    LOOP(FN, 4)
+#undef FN
 
-    if constexpr (B0 > 0) {
-      va_qs = load_quants(ai0 + k);
-      vad = vset(GGML_FP16_TO_FP32(ai0[k].d));
-      if constexpr (B1 > 0) {
-        summs[0][0] +=
-            GGML_FP16_TO_FP32(ai0[k].m) * GGML_FP16_TO_FP32(bj0[k].s);
-        vc00 =
-            madd(mul(vad, vbd0), mul_sum_us8_pairs_float(va_qs, vb0_qs), vc00);
-      }
-      if constexpr (B1 > 1) {
-        summs[0][1] +=
-            GGML_FP16_TO_FP32(ai0[k].m) * GGML_FP16_TO_FP32(bj1[k].s);
-        vc01 =
-            madd(mul(vad, vbd1), mul_sum_us8_pairs_float(va_qs, vb1_qs), vc01);
-      }
-      if constexpr (B1 > 2) {
-        summs[0][2] +=
-            GGML_FP16_TO_FP32(ai0[k].m) * GGML_FP16_TO_FP32(bj2[k].s);
-        vc02 =
-            madd(mul(vad, vbd2), mul_sum_us8_pairs_float(va_qs, vb2_qs), vc02);
-      }
-      if constexpr (B1 > 3) {
-        summs[0][3] +=
-            GGML_FP16_TO_FP32(ai0[k].m) * GGML_FP16_TO_FP32(bj3[k].s);
-        vc03 =
-            madd(mul(vad, vbd3), mul_sum_us8_pairs_float(va_qs, vb3_qs), vc03);
-      }
-    }
-
-    if constexpr (B0 > 1) {
-      va_qs = load_quants(ai1 + k);
-      vad = vset(GGML_FP16_TO_FP32(ai1[k].d));
-      if constexpr (B1 > 0) {
-        summs[1][0] +=
-            GGML_FP16_TO_FP32(ai1[k].m) * GGML_FP16_TO_FP32(bj0[k].s);
-        vc10 =
-            madd(mul(vad, vbd0), mul_sum_us8_pairs_float(va_qs, vb0_qs), vc10);
-      }
-      if constexpr (B1 > 1) {
-        summs[1][1] +=
-            GGML_FP16_TO_FP32(ai1[k].m) * GGML_FP16_TO_FP32(bj1[k].s);
-        vc11 =
-            madd(mul(vad, vbd1), mul_sum_us8_pairs_float(va_qs, vb1_qs), vc11);
-      }
-      if constexpr (B1 > 2) {
-        summs[1][2] +=
-            GGML_FP16_TO_FP32(ai1[k].m) * GGML_FP16_TO_FP32(bj2[k].s);
-        vc12 =
-            madd(mul(vad, vbd2), mul_sum_us8_pairs_float(va_qs, vb2_qs), vc12);
-      }
-      if constexpr (B1 > 3) {
-        summs[1][3] +=
-            GGML_FP16_TO_FP32(ai1[k].m) * GGML_FP16_TO_FP32(bj3[k].s);
-        vc13 =
-            madd(mul(vad, vbd3), mul_sum_us8_pairs_float(va_qs, vb3_qs), vc13);
-      }
-    }
-
-    if constexpr (B0 > 2) {
-      va_qs = load_quants(ai2 + k);
-      vad = vset(GGML_FP16_TO_FP32(ai2[k].d));
-      if constexpr (B1 > 0) {
-        summs[2][0] +=
-            GGML_FP16_TO_FP32(ai2[k].m) * GGML_FP16_TO_FP32(bj0[k].s);
-        vc20 =
-            madd(mul(vad, vbd0), mul_sum_us8_pairs_float(va_qs, vb0_qs), vc20);
-      }
-      if constexpr (B1 > 1) {
-        summs[2][1] +=
-            GGML_FP16_TO_FP32(ai2[k].m) * GGML_FP16_TO_FP32(bj1[k].s);
-        vc21 =
-            madd(mul(vad, vbd1), mul_sum_us8_pairs_float(va_qs, vb1_qs), vc21);
-      }
-      if constexpr (B1 > 2) {
-        summs[2][2] +=
-            GGML_FP16_TO_FP32(ai2[k].m) * GGML_FP16_TO_FP32(bj2[k].s);
-        vc22 =
-            madd(mul(vad, vbd2), mul_sum_us8_pairs_float(va_qs, vb2_qs), vc22);
-      }
-      if constexpr (B1 > 3) {
-        summs[2][3] +=
-            GGML_FP16_TO_FP32(ai2[k].m) * GGML_FP16_TO_FP32(bj3[k].s);
-        vc23 =
-            madd(mul(vad, vbd3), mul_sum_us8_pairs_float(va_qs, vb3_qs), vc23);
-      }
-    }
-
-    if constexpr (B0 > 3) {
-      va_qs = load_quants(ai3 + k);
-      vad = vset(GGML_FP16_TO_FP32(ai3[k].d));
-      if constexpr (B1 > 0) {
-        summs[3][0] +=
-            GGML_FP16_TO_FP32(ai3[k].m) * GGML_FP16_TO_FP32(bj0[k].s);
-        vc30 =
-            madd(mul(vad, vbd0), mul_sum_us8_pairs_float(va_qs, vb0_qs), vc30);
-      }
-      if constexpr (B1 > 1) {
-        summs[3][1] +=
-            GGML_FP16_TO_FP32(ai3[k].m) * GGML_FP16_TO_FP32(bj1[k].s);
-        vc31 =
-            madd(mul(vad, vbd1), mul_sum_us8_pairs_float(va_qs, vb1_qs), vc31);
-      }
-      if constexpr (B1 > 2) {
-        summs[3][2] +=
-            GGML_FP16_TO_FP32(ai3[k].m) * GGML_FP16_TO_FP32(bj2[k].s);
-        vc32 =
-            madd(mul(vad, vbd2), mul_sum_us8_pairs_float(va_qs, vb2_qs), vc32);
-      }
-      if constexpr (B1 > 3) {
-        summs[3][3] +=
-            GGML_FP16_TO_FP32(ai3[k].m) * GGML_FP16_TO_FP32(bj3[k].s);
-        vc33 =
-            madd(mul(vad, vbd3), mul_sum_us8_pairs_float(va_qs, vb3_qs), vc33);
-      }
-    }
+#define INNER_FN(N0, N1)                                                       \
+  if constexpr (B1 > 0) {                                                      \
+    summs[N0][N1] +=                                                           \
+        GGML_FP16_TO_FP32(ai##N0[k].m) * GGML_FP16_TO_FP32(bj##N1[k].s);       \
+    vc##N0##N1 =                                                               \
+        madd(mul(vad, vbd##N1), mul_sum_us8_pairs_float(va_qs, vb##N1##_qs),   \
+             vc##N0##N1);                                                      \
+  }
+#define OUTER_FN(N0)                                                           \
+  if constexpr (B0 > N0) {                                                     \
+    va_qs = load_quants(ai##N0 + k);                                           \
+    vad = vset(GGML_FP16_TO_FP32(ai##N0[k].d));                                \
+    LOOP_INNER(INNER_FN, N0, 4)                                                \
+  }
+    LOOP(OUTER_FN, 4)
+#undef INNER_FN
+#undef OUTER_FN
   }
 
-  if constexpr (B0 > 0) {
-    if constexpr (B1 > 0) {
-      c[ldc * (j + 0) + (i + 0)] = reduce_sum(vc00) + summs[0][0];
-    }
-    if constexpr (B1 > 1) {
-      c[ldc * (j + 1) + (i + 0)] = reduce_sum(vc01) + summs[0][1];
-    }
-    if constexpr (B1 > 2) {
-      c[ldc * (j + 2) + (i + 0)] = reduce_sum(vc02) + summs[0][2];
-    }
-    if constexpr (B1 > 3) {
-      c[ldc * (j + 3) + (i + 0)] = reduce_sum(vc03) + summs[0][3];
-    }
+#define INNER_FN(N0, N1)                                                       \
+  if constexpr (B1 > N1) {                                                     \
+    c[ldc * (j + N1) + (i + N0)] = reduce_sum(vc##N0##N1) + summs[N0][N1];     \
   }
-  if constexpr (B0 > 1) {
-    if constexpr (B1 > 0) {
-      c[ldc * (j + 0) + (i + 1)] = reduce_sum(vc10) + summs[1][0];
-    }
-    if constexpr (B1 > 1) {
-      c[ldc * (j + 1) + (i + 1)] = reduce_sum(vc11) + summs[1][1];
-    }
-    if constexpr (B1 > 2) {
-      c[ldc * (j + 2) + (i + 1)] = reduce_sum(vc12) + summs[1][2];
-    }
-    if constexpr (B1 > 3) {
-      c[ldc * (j + 3) + (i + 1)] = reduce_sum(vc13) + summs[1][3];
-    }
+#define OUTER_FN(N0)                                                           \
+  if constexpr (B0 > N0) {                                                     \
+    LOOP_INNER(INNER_FN, N0, 4)                                                \
   }
-  if constexpr (B0 > 2) {
-    if constexpr (B1 > 0) {
-      c[ldc * (j + 0) + (i + 2)] = reduce_sum(vc20) + summs[2][0];
-    }
-    if constexpr (B1 > 1) {
-      c[ldc * (j + 1) + (i + 2)] = reduce_sum(vc21) + summs[2][1];
-    }
-    if constexpr (B1 > 2) {
-      c[ldc * (j + 2) + (i + 2)] = reduce_sum(vc22) + summs[2][2];
-    }
-    if constexpr (B1 > 3) {
-      c[ldc * (j + 3) + (i + 2)] = reduce_sum(vc23) + summs[2][3];
-    }
-  }
-  if constexpr (B0 > 3) {
-    if constexpr (B1 > 0) {
-      c[ldc * (j + 0) + (i + 3)] = reduce_sum(vc30) + summs[3][0];
-    }
-    if constexpr (B1 > 1) {
-      c[ldc * (j + 1) + (i + 3)] = reduce_sum(vc31) + summs[3][1];
-    }
-    if constexpr (B1 > 2) {
-      c[ldc * (j + 2) + (i + 3)] = reduce_sum(vc32) + summs[3][2];
-    }
-    if constexpr (B1 > 3) {
-      c[ldc * (j + 3) + (i + 3)] = reduce_sum(vc33) + summs[3][3];
-    }
-  }
+  LOOP(OUTER_FN, 4)
+#undef INNER_FN
+#undef OUTER_FN
 }
 
 #endif // LAMM_KERNEL_Q4_1_HPP
