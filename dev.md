@@ -95,7 +95,7 @@ Output a well-organized technical report.
 - [ ] Q8_0
 
 #### Benchmarks
-- [ ] Add arguments with type and size.
+- [x] Add arguments with different types.
 - [ ] Prepare more model weights.
 - [ ] Benchmark more models.
 

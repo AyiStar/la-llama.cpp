@@ -44,4 +44,4 @@ clean:
 
 .PHONY: format
 format:
-	clang-format -i $(SRC_DIR)/*.h $(SRC_DIR)/*.hpp $(SRC_DIR)/*.cpp
+	clang-format -i $(SRC_DIR)/*.h $(SRC_DIR)/*.hpp $(SRC_DIR)/*.cpp test/*.cpp
