@@ -83,7 +83,7 @@ Output a well-organized technical report.
 - [x] Abstract blocking logic.
 - [x] Meta-programming the block kernel with macros.
 
-#### Quantization methods
+#### Quantization Methods
 - [ ] Q2_K
 - [x] Q4_0
 - [x] Q4_1

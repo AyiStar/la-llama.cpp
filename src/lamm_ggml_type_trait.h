@@ -22,4 +22,9 @@ template <> struct ggml_type_trait<GGML_TYPE_Q4_1> {
   typedef block_q8_1 vec_dot_dtype;
 };
 
+template <> struct ggml_type_trait<GGML_TYPE_Q8_0> {
+  typedef block_q8_0 dtype;
+  typedef block_q8_0 vec_dot_dtype;
+};
+
 #endif // LAMM_GGML_TYPETRAIT

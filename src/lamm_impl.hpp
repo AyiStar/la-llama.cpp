@@ -5,12 +5,14 @@
 #include "lamm_kernel_f32.hpp"
 #include "lamm_kernel_q4_0.hpp"
 #include "lamm_kernel_q4_1.hpp"
+#include "lamm_kernel_q8_0.hpp"
 #include <cassert>
 
 template <ggml_type GGMLType> class LAMMImpl {
 public:
   using dtype = typename ggml_type_trait<GGMLType>::dtype;
   using vec_dot_dtype = typename ggml_type_trait<GGMLType>::vec_dot_dtype;
+  static ggml_type vec_dot_ggml_type;
 
   static void matmul(const Matrix &A, const Matrix &B, const Matrix &C, int ith,
                      int nth) {
@@ -38,7 +40,7 @@ public:
     }
 
     assert(C.type == GGML_TYPE_F32);
-    // TODO check B.type
+    assert(B.type == vec_dot_ggml_type);
     dtype *a = (dtype *)(A.data);
     vec_dot_dtype *b = (vec_dot_dtype *)(B.data);
     float *c = (float *)(C.data);
@@ -133,5 +135,9 @@ public:
     }
   }
 };
+
+template <ggml_type GGMLType>
+ggml_type LAMMImpl<GGMLType>::vec_dot_ggml_type =
+      ggml_internal_get_type_traits(GGMLType).vec_dot_type;
 
 #endif // LAMM_IMPL_HPP
