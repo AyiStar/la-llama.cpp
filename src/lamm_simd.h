@@ -162,11 +162,27 @@ LA_INLINE float reduce_sum(vreg_t x) {
 // load from float*
 LA_INLINE vreg_t load(const float *p) { return (vreg_t)__lasx_xvld(p, 0); }
 // load from quantized block
+
+// Q4_0
+LA_INLINE ivreg_t load_quants(const block_q4_0 *p) {
+  const __m128i lo = __lsx_vld((const __m128i *)(p->qs), 0);
+  __m128i hi = __lsx_vsrli_h(lo, 4);
+  return __lasx_xvandi_b(lasx_set_q(hi, lo), 0xf);
+}
+
+// Q4_1
 LA_INLINE ivreg_t load_quants(const block_q4_1 *p) {
   const __m128i lo = __lsx_vld((const __m128i *)(p->qs), 0);
   __m128i hi = __lsx_vsrli_h(lo, 4);
   return __lasx_xvandi_b(lasx_set_q(hi, lo), 0xf);
 }
+
+// Q8_0
+LA_INLINE ivreg_t load_quants(const block_q8_0 *p) {
+  return __lasx_xvld((const __m256i *)(p->qs), 0);
+}
+
+// Q8_1
 LA_INLINE ivreg_t load_quants(const block_q8_1 *p) {
   return __lasx_xvld((const __m256i *)(p->qs), 0);
 }
@@ -224,6 +240,18 @@ LA_INLINE float reduce_sum(vreg_t x) {
 LA_INLINE vreg_t load(const float *p) { return _mm256_loadu_ps(p); }
 
 // load from quantized block
+
+// Q4_0
+LA_INLINE ivreg_t load_quants(const block_q4_0 *p) {
+  __m128i qs =
+      _mm_loadu_si128((const __m128i *)(p->qs)); // load squeezed 4-bit qs
+  return _mm256_and_si256( // mask higher 4 bits for each uint8
+      _mm256_set1_epi8(15),
+      _mm256_insertf128_si256( // copy and expand
+          _mm256_castsi128_si256(qs), _mm_srli_epi16(qs, 4), 1));
+}
+
+// Q4_1
 LA_INLINE ivreg_t load_quants(const block_q4_1 *p) {
   __m128i qs =
       _mm_loadu_si128((const __m128i *)(p->qs)); // load squeezed 4-bit qs
@@ -232,6 +260,13 @@ LA_INLINE ivreg_t load_quants(const block_q4_1 *p) {
       _mm256_insertf128_si256( // copy and expand
           _mm256_castsi128_si256(qs), _mm_srli_epi16(qs, 4), 1));
 }
+
+// Q8_0
+LA_INLINE ivreg_t load_quants(const block_q8_0 *p) {
+  return _mm256_loadu_si256((const __m256i *)(p->qs));
+};
+
+// Q8_1
 LA_INLINE ivreg_t load_quants(const block_q8_1 *p) {
   return _mm256_loadu_si256((const __m256i *)(p->qs));
 };

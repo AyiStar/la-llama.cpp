@@ -85,7 +85,7 @@ Output a well-organized technical report.
 
 #### Quantization methods
 - [ ] Q2_K
-- [ ] Q4_0
+- [x] Q4_0
 - [x] Q4_1
 - [ ] Q4_K
 - [ ] Q5_0
