@@ -185,6 +185,12 @@ LA_INLINE ivreg_t load_quants(const block_q8_0 *p) {
   return __lasx_xvld((const __m256i *)(p->qs), 0);
 }
 
+// Q8_1
+LA_INLINE ivreg_t load_quants(const block_q8_1 *p) {
+  static_assert(ggml_type_trait<GGML_TYPE_Q8_1>::super_block_size == 32);
+  return __lasx_xvld((const __m256i *)(p->qs), 0);
+}
+
 LA_INLINE vreg_t sum_i16_pairs_float(const ivreg_t x) {
   ivreg_t v = __lasx_xvpackod_h(x, x);
   ivreg_t summed_pairs = __lasx_xvaddwev_w_h(x, v);
@@ -264,6 +270,12 @@ LA_INLINE ivreg_t load_quants(const block_q4_1 *p) {
 // Q8_0
 LA_INLINE ivreg_t load_quants(const block_q8_0 *p) {
   static_assert(ggml_type_trait<GGML_TYPE_Q8_0>::super_block_size == 32);
+  return _mm256_loadu_si256((const __m256i *)(p->qs));
+};
+
+// Q8_1
+LA_INLINE ivreg_t load_quants(const block_q8_1 *p) {
+  static_assert(ggml_type_trait<GGML_TYPE_Q8_1>::super_block_size == 32);
   return _mm256_loadu_si256((const __m256i *)(p->qs));
 };
 

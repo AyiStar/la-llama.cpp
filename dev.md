@@ -92,7 +92,7 @@ Output a well-organized technical report.
 - [ ] Q5_1
 - [ ] Q5_K
 - [ ] Q6_K
-- [ ] Q8_0
+- [x] Q8_0
 
 #### Benchmarks
 - [x] Add arguments with different types.

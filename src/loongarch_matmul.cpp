@@ -107,6 +107,9 @@ void lamm_mul_mat(const struct ggml_compute_params *params,
   case GGML_TYPE_Q8_0:
     mm_func = LAMMImpl<GGML_TYPE_Q8_0>::matmul;
     break;
+  case GGML_TYPE_Q5_0:
+    mm_func = LAMMImpl<GGML_TYPE_Q5_0>::matmul;
+    break;
   default:
     assert(false); // unreachable
   }
