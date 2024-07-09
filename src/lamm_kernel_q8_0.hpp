@@ -15,7 +15,7 @@ typedef struct {
 LA_INLINE void lamm_naive_kernel(const block_q8_0 *a, const block_q8_0 *b,
                                  float *c, int64_t lda, int64_t ldb,
                                  int64_t ldc, int i, int j, int K) {
-  constexpr int Q = QK8_0;
+  constexpr int Q = ggml_type_trait<GGML_TYPE_Q8_0>::super_block_size;
   float sum = 0.0;
   for (int k = 0; k < K; k++) {
     const auto *aik = a + (i * lda + k);

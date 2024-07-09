@@ -7,7 +7,7 @@
 LA_INLINE void lamm_naive_kernel(const block_q4_1 *a, const block_q8_1 *b,
                                  float *c, int64_t lda, int64_t ldb,
                                  int64_t ldc, int i, int j, int K) {
-  constexpr int Q = QK8_1;
+  constexpr int Q = ggml_type_trait<GGML_TYPE_Q4_1>::super_block_size;
   float sum = 0.0;
   for (int k = 0; k < K; k++) {
     const auto *aik = a + (i * lda + k);

@@ -138,6 +138,6 @@ public:
 
 template <ggml_type GGMLType>
 ggml_type LAMMImpl<GGMLType>::vec_dot_ggml_type =
-      ggml_internal_get_type_traits(GGMLType).vec_dot_type;
+    ggml_internal_get_type_traits(GGMLType).vec_dot_type;
 
 #endif // LAMM_IMPL_HPP

@@ -165,6 +165,7 @@ LA_INLINE vreg_t load(const float *p) { return (vreg_t)__lasx_xvld(p, 0); }
 
 // Q4_0
 LA_INLINE ivreg_t load_quants(const block_q4_0 *p) {
+  static_assert(ggml_type_trait<GGML_TYPE_Q4_0>::super_block_size == 32);
   const __m128i lo = __lsx_vld((const __m128i *)(p->qs), 0);
   __m128i hi = __lsx_vsrli_h(lo, 4);
   return __lasx_xvandi_b(lasx_set_q(hi, lo), 0xf);
@@ -172,6 +173,7 @@ LA_INLINE ivreg_t load_quants(const block_q4_0 *p) {
 
 // Q4_1
 LA_INLINE ivreg_t load_quants(const block_q4_1 *p) {
+  static_assert(ggml_type_trait<GGML_TYPE_Q4_1>::super_block_size == 32);
   const __m128i lo = __lsx_vld((const __m128i *)(p->qs), 0);
   __m128i hi = __lsx_vsrli_h(lo, 4);
   return __lasx_xvandi_b(lasx_set_q(hi, lo), 0xf);
@@ -179,11 +181,7 @@ LA_INLINE ivreg_t load_quants(const block_q4_1 *p) {
 
 // Q8_0
 LA_INLINE ivreg_t load_quants(const block_q8_0 *p) {
-  return __lasx_xvld((const __m256i *)(p->qs), 0);
-}
-
-// Q8_1
-LA_INLINE ivreg_t load_quants(const block_q8_1 *p) {
+  static_assert(ggml_type_trait<GGML_TYPE_Q8_0>::super_block_size == 32);
   return __lasx_xvld((const __m256i *)(p->qs), 0);
 }
 
@@ -243,6 +241,7 @@ LA_INLINE vreg_t load(const float *p) { return _mm256_loadu_ps(p); }
 
 // Q4_0
 LA_INLINE ivreg_t load_quants(const block_q4_0 *p) {
+  static_assert(ggml_type_trait<GGML_TYPE_Q4_0>::super_block_size == 32);
   __m128i qs =
       _mm_loadu_si128((const __m128i *)(p->qs)); // load squeezed 4-bit qs
   return _mm256_and_si256( // mask higher 4 bits for each uint8
@@ -253,6 +252,7 @@ LA_INLINE ivreg_t load_quants(const block_q4_0 *p) {
 
 // Q4_1
 LA_INLINE ivreg_t load_quants(const block_q4_1 *p) {
+  static_assert(ggml_type_trait<GGML_TYPE_Q4_1>::super_block_size == 32);
   __m128i qs =
       _mm_loadu_si128((const __m128i *)(p->qs)); // load squeezed 4-bit qs
   return _mm256_and_si256( // mask higher 4 bits for each uint8
@@ -263,11 +263,7 @@ LA_INLINE ivreg_t load_quants(const block_q4_1 *p) {
 
 // Q8_0
 LA_INLINE ivreg_t load_quants(const block_q8_0 *p) {
-  return _mm256_loadu_si256((const __m256i *)(p->qs));
-};
-
-// Q8_1
-LA_INLINE ivreg_t load_quants(const block_q8_1 *p) {
+  static_assert(ggml_type_trait<GGML_TYPE_Q8_0>::super_block_size == 32);
   return _mm256_loadu_si256((const __m256i *)(p->qs));
 };
 
