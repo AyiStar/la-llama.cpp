@@ -99,4 +99,11 @@ constexpr int kOptLevel = LAMM_OPT_LEVEL;
 constexpr int kOptLevel = 3;
 #endif
 
+// debug control
+#if defined(LAMM_DEBUG)
+constexpr bool kDebug = true;
+#else
+constexpr bool kDebug = false;
+#endif
+
 #endif // LAMM_COMMON_H
