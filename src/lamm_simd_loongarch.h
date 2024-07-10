@@ -87,6 +87,11 @@ LA_INLINE vreg_t sub(vreg_t x, vreg_t y) { return __lasx_xvfsub_s(x, y); }
 // x * y: f32
 LA_INLINE vreg_t mul(vreg_t x, vreg_t y) { return __lasx_xvfmul_s(x, y); }
 
+// (~x) & y: int
+LA_INLINE ivreg_t andnot(ivreg_t x, ivreg_t y) {
+    return __lasx_xvandn_v(x, y);
+}
+
 // Convert __m256i low part to __m128i
 LA_INLINE __m128i lasx_extracti128_lo(__m256i in) {
   __m128i out;
@@ -123,6 +128,7 @@ LA_INLINE __m128i lasx_extracti128_hi(__m256i in) {
   return out;
 }
 
+// sum 4 f32 -> f32
 LA_INLINE __m128 lasx_extractf128(__m256 a, int pos) {
   __m128 ret;
   if (pos == 0) {
@@ -133,7 +139,7 @@ LA_INLINE __m128 lasx_extractf128(__m256 a, int pos) {
   return ret;
 }
 
-// vector -> f32
+// sum 8 f32 -> f32
 LA_INLINE float reduce_sum(vreg_t x) {
   __m128 res = lasx_extractf128(x, 1);
   FloatInt tmp;

@@ -27,6 +27,7 @@ using vreg_t = __m256;   // vector register type
 using ivreg_t = __m256i; // integer vector register type
 
 LA_INLINE vreg_t vset(const float f) { return _mm256_set1_ps(f); }
+LA_INLINE ivreg_t ivset(const uint8_t f) { return _mm256_set1_epi8(f); }
 
 // x + y: f32
 LA_INLINE vreg_t add(vreg_t x, vreg_t y) { return _mm256_add_ps(x, y); }
@@ -42,13 +43,37 @@ LA_INLINE vreg_t sub(vreg_t x, vreg_t y) { return _mm256_sub_ps(x, y); }
 // x * y: f32
 LA_INLINE vreg_t mul(vreg_t x, vreg_t y) { return _mm256_mul_ps(x, y); }
 
-// vector -> f32
+// (~x) & y
+LA_INLINE ivreg_t andnot(ivreg_t x, ivreg_t y) {
+    return _mm256_andnot_si256(x, y);
+}
+
+// x | y
+LA_INLINE ivreg_t _or(ivreg_t x, ivreg_t y) {
+    return _mm256_or_si256(x, y);
+}
+
+// 32 bits -> 256 bits
+LA_INLINE ivreg_t spread_bits(const uint8_t * x) {
+  uint32_t x32;
+  memcpy(&x32, x, sizeof(uint32_t));
+  const __m256i shuf_mask = _mm256_set_epi64x(
+          0x0303030303030303, 0x0202020202020202,
+          0x0101010101010101, 0x0000000000000000);
+  __m256i bytes = _mm256_shuffle_epi8(_mm256_set1_epi32(x32), shuf_mask);
+  const __m256i bit_mask = _mm256_set1_epi64x(0x7fbfdfeff7fbfdfe);
+  bytes = _mm256_or_si256(bytes, bit_mask);
+  return _mm256_cmpeq_epi8(bytes, _mm256_set1_epi64x(-1));
+}
+
+// sum 4 f32 -> f32
 LA_INLINE float reduce_sum(__m128 x) {
   x = _mm_add_ps(x, _mm_movehl_ps(x, x));
   x = _mm_add_ss(x, _mm_movehdup_ps(x));
   return _mm_cvtss_f32(x);
 }
 
+// sum 8 f32 -> f32
 LA_INLINE float reduce_sum(vreg_t x) {
   return reduce_sum(
       _mm_add_ps(_mm256_extractf128_ps(x, 1), _mm256_castps256_ps128(x)));
@@ -73,6 +98,28 @@ LA_INLINE ivreg_t load_quants(const block_q4_0 *p) {
 // Q4_1
 LA_INLINE ivreg_t load_quants(const block_q4_1 *p) {
   static_assert(ggml_type_trait<GGML_TYPE_Q4_1>::super_block_size == 32);
+  __m128i qs =
+      _mm_loadu_si128((const __m128i *)(p->qs)); // load squeezed 4-bit qs
+  return _mm256_and_si256( // mask higher 4 bits for each uint8
+      _mm256_set1_epi8(15),
+      _mm256_insertf128_si256( // copy and expand
+          _mm256_castsi128_si256(qs), _mm_srli_epi16(qs, 4), 1));
+}
+
+// Q5_0
+LA_INLINE ivreg_t load_quants(const block_q5_0 *p) {
+  static_assert(ggml_type_trait<GGML_TYPE_Q4_0>::super_block_size == 32);
+  __m128i qs =
+      _mm_loadu_si128((const __m128i *)(p->qs)); // load squeezed 4-bit qs
+  return _mm256_and_si256( // mask higher 4 bits for each uint8
+      _mm256_set1_epi8(15),
+      _mm256_insertf128_si256( // copy and expand
+          _mm256_castsi128_si256(qs), _mm_srli_epi16(qs, 4), 1));
+}
+
+// Q5_1
+LA_INLINE ivreg_t load_quants(const block_q5_1 *p) {
+  static_assert(ggml_type_trait<GGML_TYPE_Q4_0>::super_block_size == 32);
   __m128i qs =
       _mm_loadu_si128((const __m128i *)(p->qs)); // load squeezed 4-bit qs
   return _mm256_and_si256( // mask higher 4 bits for each uint8

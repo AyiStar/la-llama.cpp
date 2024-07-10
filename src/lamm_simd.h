@@ -13,7 +13,6 @@
 #include <cassert>
 #include <iostream>
 
-//// plaform
 #if defined(__loongarch_asx)
 #include "lamm_simd_loongarch.h"
 #elif defined(__AVX2__)
