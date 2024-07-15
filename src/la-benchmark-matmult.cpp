@@ -78,7 +78,7 @@ static ggml_type get_dtype_by_name(const char *name) {
   __FOREACH_NAME_TYPE_PAIRS(__GET_TYPE_FN)
 #undef __GET_TYPE_FN
   printf("Unknonw type name: %s\n", name);
-  exit(0);
+  exit(1);
 }
 
 struct benchmark_params_struct {
@@ -126,7 +126,6 @@ int main(int argc, char **argv) {
   std::string arg;
   for (int i = 1; i < argc; i++) {
     arg = argv[i];
-
     if (arg == "-t" || arg == "--threads") {
       if (++i >= argc) {
         invalid_param = true;
@@ -141,7 +140,7 @@ int main(int argc, char **argv) {
       benchmark_params.n_iterations = std::stoi(argv[i]);
     } else if (arg == "-h" || arg == "--help") {
       print_usage(argc, argv, benchmark_params);
-      exit(0);
+      exit(1);
     } else if (arg == "-d" || arg == "--dtype") {
       if (++i >= argc) {
         invalid_param = true;
@@ -374,7 +373,7 @@ void do_benchmark(int sizex, int sizey, int sizez, struct ggml_cgraph *g1,
       printf("\nABORT - ERROR in Matrix Multiplication result - expected "
              "%6.2f, got %6.2f (delta %.3f%% > allowed_delta %.3f%%)\n",
              correct, sum_of_result, delta * 100, allowed_delta * 100);
-      exit(0);
+      exit(1);
     }
 
     // Running a different graph computation to make sure we override the CPU

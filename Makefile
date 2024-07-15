@@ -33,14 +33,14 @@ benchmark: $(SRC_DIR)/loongarch_matmul.o
 .PHONY: main
 main: $(SRC_DIR)/loongarch_matmul.o
 	$(MAKE) -C $(LLAMA_CPP_DIR) main $(MK_FORCE) -j8
-	cp $(LLAMA_CPP_DIR)/main $(TEST_DIR)/main
+	cp $(LLAMA_CPP_DIR)/main $(SRC_DIR)/main
 
 $(SRC_DIR)/loongarch_matmul.o:
 	$(MAKE) -C $(LLAMA_CPP_DIR) lamm
 
 .PHONY: clean
 clean:
-	rm -f $(SRC_DIR)/*.o $(TEST_DIR)/*.o $(TEST_DIR)/la-benchmark-matmult $(TEST_DIR)/main
+	rm -f $(SRC_DIR)/*.o $(SRC_DIR)/la-benchmark-matmult $(SRC_DIR)/main
 
 .PHONY: format
 format:

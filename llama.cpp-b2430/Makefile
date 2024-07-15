@@ -591,7 +591,6 @@ endif # LLAMA_MPI
 
 ifdef LLAMA_LOONGARCH
 LOONGARCH_SRCDIR = ../src
-LOONGARCH_TESTDIR = ../test
 CPPFLAGS += -I$(LOONGARCH_SRCDIR)
 CPPFLAGS += -DLA_LLAMA
 OBJS += $(LOONGARCH_SRCDIR)/loongarch_matmul.o
@@ -862,9 +861,9 @@ run-benchmark-matmult: benchmark-matmult
 
 ifdef LLAMA_LOONGARCH
 .PHONY: la-benchmark-matmult
-la-benchmark-matmult: $(LOONGARCH_TESTDIR)/la-benchmark-matmult.cpp build-info.o ggml.o llama.o $(OBJS)
+la-benchmark-matmult: $(LOONGARCH_SRCDIR)/la-benchmark-matmult.cpp build-info.o ggml.o llama.o $(OBJS)
 	$(CXX) $(CXXFLAGS) $(LAMM_FLAGS) -c $< -o $(call GET_OBJ_FILE, $<)
-	$(CXX) $(CXXFLAGS) $(filter-out %.h $<,$^) $(call GET_OBJ_FILE, $<) -o $(LOONGARCH_TESTDIR)/$@ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) $(filter-out %.h $<,$^) $(call GET_OBJ_FILE, $<) -o $(LOONGARCH_SRCDIR)/$@ $(LDFLAGS)
 endif
 
 .PHONY: run-benchmark-matmult swift
