@@ -21,6 +21,7 @@ bool lamm_can_mul_mat(const struct ggml_compute_params *params,
 void lamm_mul_mat(const struct ggml_compute_params *params,
                   struct ggml_tensor *dst);
 
+int lamm_get_opt_level();
 #ifdef __cplusplus
 }
 #endif

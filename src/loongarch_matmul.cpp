@@ -131,3 +131,5 @@ void lamm_mul_mat(const struct ggml_compute_params *params,
     }
   }
 }
+
+int lamm_get_opt_level() { return kOptLevel; }

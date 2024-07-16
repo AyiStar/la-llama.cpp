@@ -1,6 +1,7 @@
 #include "common.h"
 #include "ggml.h"
 #include "llama.h"
+#include "loongarch_matmul.h"
 
 #include <algorithm>
 #include <assert.h>
@@ -161,6 +162,9 @@ int main(int argc, char **argv) {
     LOG_TEE("\n");
     LOG_TEE("%s\n", llama_print_system_info());
   }
+  // print lamm optimization level
+  printf("LAMM optimization level = %d\n", lamm_get_opt_level());
+
   printf("Starting Test\n");
 
   // create the ggml context
