@@ -27,7 +27,7 @@ using vreg_t = __m256;   // vector register type
 using ivreg_t = __m256i; // integer vector register type
 
 LA_INLINE vreg_t vset(const float f) { return _mm256_set1_ps(f); }
-LA_INLINE ivreg_t ivset(const uint8_t f) { return _mm256_set1_epi8(f); }
+LA_INLINE ivreg_t ivset(const char i) { return _mm256_set1_epi8(i); }
 
 // x + y: f32
 LA_INLINE vreg_t add(vreg_t x, vreg_t y) { return _mm256_add_ps(x, y); }
@@ -40,26 +40,27 @@ LA_INLINE vreg_t madd(vreg_t x, vreg_t y, vreg_t z) {
 // x - y: f32
 LA_INLINE vreg_t sub(vreg_t x, vreg_t y) { return _mm256_sub_ps(x, y); }
 
+// x - y: int
+LA_INLINE ivreg_t sub(ivreg_t x, ivreg_t y) { return _mm256_sub_epi8(x, y); }
+
 // x * y: f32
 LA_INLINE vreg_t mul(vreg_t x, vreg_t y) { return _mm256_mul_ps(x, y); }
 
 // (~x) & y
 LA_INLINE ivreg_t andnot(ivreg_t x, ivreg_t y) {
-    return _mm256_andnot_si256(x, y);
+  return _mm256_andnot_si256(x, y);
 }
 
 // x | y
-LA_INLINE ivreg_t _or(ivreg_t x, ivreg_t y) {
-    return _mm256_or_si256(x, y);
-}
+LA_INLINE ivreg_t _or(ivreg_t x, ivreg_t y) { return _mm256_or_si256(x, y); }
 
 // 32 bits -> 256 bits
-LA_INLINE ivreg_t spread_bits(const uint8_t * x) {
+LA_INLINE ivreg_t spread_bits(const uint8_t *x) {
   uint32_t x32;
   memcpy(&x32, x, sizeof(uint32_t));
-  const __m256i shuf_mask = _mm256_set_epi64x(
-          0x0303030303030303, 0x0202020202020202,
-          0x0101010101010101, 0x0000000000000000);
+  const __m256i shuf_mask =
+      _mm256_set_epi64x(0x0303030303030303, 0x0202020202020202,
+                        0x0101010101010101, 0x0000000000000000);
   __m256i bytes = _mm256_shuffle_epi8(_mm256_set1_epi32(x32), shuf_mask);
   const __m256i bit_mask = _mm256_set1_epi64x(0x7fbfdfeff7fbfdfe);
   bytes = _mm256_or_si256(bytes, bit_mask);
@@ -154,6 +155,15 @@ inline vreg_t mul_sum_us8_pairs_float(const ivreg_t ax, const ivreg_t sy) {
   // Perform multiplication and create 16-bit values
   const __m256i dot = _mm256_maddubs_epi16(ax, sy);
   return sum_i16_pairs_float(dot);
+}
+
+inline vreg_t mul_sum_i8_pairs_float(const ivreg_t x, const ivreg_t y) {
+  // Perform multiplication and create 16-bit values
+  // Get absolute values of x vectors
+  const __m256i ax = _mm256_sign_epi8(x, x);
+  // Sign the values of the y vectors
+  const __m256i sy = _mm256_sign_epi8(y, x);
+  return mul_sum_us8_pairs_float(ax, sy);
 }
 
 } // namespace simd

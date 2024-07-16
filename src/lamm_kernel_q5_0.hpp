@@ -47,22 +47,22 @@ LA_INLINE void lamm_naive_kernel(const block_q5_0 *a, const block_q8_0 *b,
 LA_INLINE void lamm_simd_kernel(const block_q5_0 *a, const block_q8_0 *b,
                                 float *c, int64_t lda, int64_t ldb, int64_t ldc,
                                 int i, int j, int K) {
-    // simd::vreg_t acc = {0};
-    // const auto *ai = a + (i * lda);
-    // const auto *bj = b + (j * ldb);
-    // for (int k = 0; k < K; k++, ai++, bj++) {
-    //   const simd::vreg_t ad = simd::vset(GGML_FP16_TO_FP32(ai->d));
-    //   const simd::vreg_t bd = simd::vset(GGML_FP16_TO_FP32(bj->d));
-    //   const __m256 adbd = simd::mul(ad, bd);
-    //   simd::ivreg_t va_qs = simd::load_quants(ai);
-    //   simd::ivreg_t xh = simd::spread_bits(a[i].qh);
-    //   xh = simd::andnot(xh, simd::ivset((char)0xF0));
-    //   va_qs = simd::_or(va_qs, xh);
-    //   simd::ivreg_t vb_qs = simd::load_quants(bj);
-    //   const simd::vreg_t xy = simd::mul_sum_us8_pairs_float(va_qs, vb_qs);
-    //   acc = simd::madd(adbd, xy, acc);
-    // }
-    // c[j * ldc + i] = simd::reduce_sum(acc);
+  // simd::vreg_t acc = {0};
+  // const auto *ai = a + (i * lda);
+  // const auto *bj = b + (j * ldb);
+  // for (int k = 0; k < K; k++, ai++, bj++) {
+  //   const simd::vreg_t ad = simd::vset(GGML_FP16_TO_FP32(ai->d));
+  //   const simd::vreg_t bd = simd::vset(GGML_FP16_TO_FP32(bj->d));
+  //   const __m256 adbd = simd::mul(ad, bd);
+  //   simd::ivreg_t va_qs = simd::load_quants(ai);
+  //   simd::ivreg_t xh = simd::spread_bits(a[i].qh);
+  //   xh = simd::andnot(xh, simd::ivset((char)0xF0));
+  //   va_qs = simd::_or(va_qs, xh);
+  //   simd::ivreg_t vb_qs = simd::load_quants(bj);
+  //   const simd::vreg_t xy = simd::mul_sum_us8_pairs_float(va_qs, vb_qs);
+  //   acc = simd::madd(adbd, xy, acc);
+  // }
+  // c[j * ldc + i] = simd::reduce_sum(acc);
 }
 
 template <int B0, int B1>

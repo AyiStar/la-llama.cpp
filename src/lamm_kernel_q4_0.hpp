@@ -28,8 +28,8 @@ LA_INLINE void lamm_naive_kernel(const block_q4_0 *a, const block_q8_0 *b,
     const auto *bjk = b + (j * ldb + k);
     int sumi = 0;
     for (int h = 0; h < Q / 2; h++) {
-      sumi += (aik->qs[h] & 0x0F) * (bjk->qs[h]);
-      sumi += (aik->qs[h] >> 4) * (bjk->qs[h + Q / 2]);
+      sumi += ((aik->qs[h] & 0x0F) - 8) * (bjk->qs[h]);
+      sumi += ((aik->qs[h] >> 4) - 8) * (bjk->qs[h + Q / 2]);
     }
     sum += (GGML_FP16_TO_FP32(aik->d) * GGML_FP16_TO_FP32(bjk->d)) * sumi;
   }
@@ -43,12 +43,14 @@ LA_INLINE void lamm_simd_kernel(const block_q4_0 *a, const block_q8_0 *b,
   const auto *ai = a + (i * lda);
   const auto *bj = b + (j * ldb);
   for (int k = 0; k < K; k++, ai++, bj++) {
-    const simd::vreg_t ad = simd::vset(GGML_FP16_TO_FP32(ai->d));
-    const simd::vreg_t bd = simd::vset(GGML_FP16_TO_FP32(bj->d));
-    const __m256 adbd = simd::mul(ad, bd);
     simd::ivreg_t va_qs = simd::load_quants(ai);
+    const simd::ivreg_t offset = simd::ivset(8);
+    va_qs = simd::sub(va_qs, offset);
     simd::ivreg_t vb_qs = simd::load_quants(bj);
-    const simd::vreg_t xy = simd::mul_sum_us8_pairs_float(va_qs, vb_qs);
+    const simd::vreg_t xy = simd::mul_sum_i8_pairs_float(va_qs, vb_qs);
+
+    const simd::vreg_t adbd =
+        simd::vset(GGML_FP16_TO_FP32(ai->d) * GGML_FP16_TO_FP32(bj->d));
     acc = simd::madd(adbd, xy, acc);
   }
   c[j * ldc + i] = simd::reduce_sum(acc);
@@ -63,6 +65,8 @@ LA_INLINE void lamm_simd_block_kernel(const block_q4_0 *a, const block_q8_0 *b,
   static_assert(B1 > 0 && B1 <= 4);
 
   using namespace simd;
+
+  const ivreg_t voffset = ivset(8);
 
   ivreg_t va_qs = {0};
   simd::vreg_t vad = {0};
@@ -95,13 +99,13 @@ LA_INLINE void lamm_simd_block_kernel(const block_q4_0 *a, const block_q8_0 *b,
 
 #define INNER_FN(N0, N1)                                                       \
   if constexpr (B1 > 0) {                                                      \
-    vc##N0##N1 =                                                               \
-        madd(mul(vad, vbd##N1), mul_sum_us8_pairs_float(va_qs, vb##N1##_qs),   \
-             vc##N0##N1);                                                      \
+    vc##N0##N1 = madd(mul(vad, vbd##N1),                                       \
+                      mul_sum_i8_pairs_float(va_qs, vb##N1##_qs), vc##N0##N1); \
   }
 #define OUTER_FN(N0)                                                           \
   if constexpr (B0 > N0) {                                                     \
     va_qs = load_quants(ai##N0 + k);                                           \
+    va_qs = sub(va_qs, voffset);                                               \
     vad = vset(GGML_FP16_TO_FP32(ai##N0[k].d));                                \
     LOOP_INNER(INNER_FN, N0, 4)                                                \
   }

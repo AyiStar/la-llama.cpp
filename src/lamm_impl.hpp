@@ -75,8 +75,9 @@ public:
       job_end = M;
     }
 
-    float *a = (float *)(A.data), *b = (float *)(B.data),
-          *c = (float *)(C.data);
+    dtype *a = (dtype *)(A.data);
+    vec_dot_dtype *b = (vec_dot_dtype *)(B.data);
+    float *c = (float *)(C.data);
     for (int i = job_start; i < job_end; i++) {
       for (int j = 0; j < N; j++) {
         lamm_simd_kernel(a, b, c, lda, ldb, ldc, i, j, K);

@@ -88,9 +88,7 @@ LA_INLINE vreg_t sub(vreg_t x, vreg_t y) { return __lasx_xvfsub_s(x, y); }
 LA_INLINE vreg_t mul(vreg_t x, vreg_t y) { return __lasx_xvfmul_s(x, y); }
 
 // (~x) & y: int
-LA_INLINE ivreg_t andnot(ivreg_t x, ivreg_t y) {
-    return __lasx_xvandn_v(x, y);
-}
+LA_INLINE ivreg_t andnot(ivreg_t x, ivreg_t y) { return __lasx_xvandn_v(x, y); }
 
 // Convert __m256i low part to __m128i
 LA_INLINE __m128i lasx_extracti128_lo(__m256i in) {

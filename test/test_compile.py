@@ -15,4 +15,4 @@ def test_compilation(opt_level):
         check=False,
     )
     assert completed.returncode == 0, completed.stderr
-    assert os.path.exists(LAMM_PROJECT_DIR / 'src' / 'la-benchmark-matmul')
+    assert os.path.exists(LAMM_PROJECT_DIR / 'src' / 'la-benchmark-matmult')

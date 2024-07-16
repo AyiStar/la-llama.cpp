@@ -20,7 +20,7 @@ def compile_lamm(request):
     # assert completed.returncode == 0, completed.stderr
     return request.param
 
-@pytest.mark.parametrize("dtype", ["f32", "q4_0"])
+@pytest.mark.parametrize("dtype", ["f32", "q4_0", "q4_1", "q5_0"])
 def test_matmul_correctness(compile_lamm, dtype):
     completed = subprocess.run(
         args=LAMMCommand.run_benchmark(ggml_type=dtype),

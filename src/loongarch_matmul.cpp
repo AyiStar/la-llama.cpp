@@ -35,10 +35,8 @@ bool lamm_can_mul_mat(const struct ggml_compute_params *params,
     return false;
   }
   static const enum ggml_type supported_types[][2] = {
-      {GGML_TYPE_F32, GGML_TYPE_F32},
-      {GGML_TYPE_Q4_0, GGML_TYPE_Q8_0},
-      {GGML_TYPE_Q4_1, GGML_TYPE_Q8_1},
-      {GGML_TYPE_Q5_0, GGML_TYPE_Q8_0},
+      {GGML_TYPE_F32, GGML_TYPE_F32},   {GGML_TYPE_Q4_0, GGML_TYPE_Q8_0},
+      {GGML_TYPE_Q4_1, GGML_TYPE_Q8_1}, {GGML_TYPE_Q5_0, GGML_TYPE_Q8_0},
       {GGML_TYPE_Q8_0, GGML_TYPE_Q8_0},
   };
   const int num_supported_types =
