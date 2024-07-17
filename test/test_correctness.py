@@ -16,7 +16,7 @@ def compile_lamm(request):
         check=False,
     )
     return subprocess.run(
-        args=LAMMCommand.compile(opt_level=request.param),
+        args=LAMMCommand.compile(opt_level=request.param, debug=True),
         capture_output=True,
         cwd=LAMM_PROJECT_DIR,
         check=False,

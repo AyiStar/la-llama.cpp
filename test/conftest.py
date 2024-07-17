@@ -7,5 +7,5 @@ def pytest_generate_tests(metafunc):
         if metafunc.config.getoption("--dtype") is not None:
             dtypes = [metafunc.config.getoption("--dtype")]
         else:
-            dtypes = ["f32", "q4_0", "q4_1", "q8_0"]
+            dtypes = ["f32", "q4_0", "q4_1", "q8_0", "q5_0"]
         metafunc.parametrize("dtype", dtypes)

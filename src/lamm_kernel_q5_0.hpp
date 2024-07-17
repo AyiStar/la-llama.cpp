@@ -56,9 +56,9 @@ LA_INLINE void lamm_simd_kernel(const block_q5_0 *a, const block_q8_0 *b,
     const simd::vreg_t adbd =
         simd::vset(GGML_FP16_TO_FP32(ai->d) * GGML_FP16_TO_FP32(bj->d));
     simd::ivreg_t va_qs = simd::load_quants(ai);
-    simd::ivreg_t qah = simd::spread_bits(a[i].qh);
-    qah = simd::andnot(qah, simd::ivset((char)0xF0));
-    va_qs = simd::_or(va_qs, qah);
+    simd::ivreg_t va_qh = simd::spread_bits(ai->qh);
+    va_qh = simd::andnot(va_qh, simd::ivset((char)0xF0));
+    va_qs = simd::_or(va_qs, va_qh);
     simd::ivreg_t vb_qs = simd::load_quants(bj);
     const simd::vreg_t xy = simd::mul_sum_i8_pairs_float(va_qs, vb_qs);
     acc = simd::madd(adbd, xy, acc);
@@ -71,72 +71,71 @@ LA_INLINE void lamm_simd_block_kernel(const block_q5_0 *a, const block_q8_0 *b,
                                       float *c, int64_t lda, int64_t ldb,
                                       int64_t ldc, int i, int j, int K) {
 
-  //   static_assert(B0 > 0 && B0 <= 4);
-  //   static_assert(B1 > 0 && B1 <= 4);
+  static_assert(B0 > 0 && B0 <= 4);
+  static_assert(B1 > 0 && B1 <= 4);
 
-  //   using namespace simd;
+  using namespace simd;
 
-  //   ivreg_t va_qs = {0};
-  //   simd::vreg_t vad = {0};
-  //   [[maybe_unused]] ivreg_t vb0_qs = {0}, vb1_qs = {0}, vb2_qs = {0},
-  //                            vb3_qs = {0};
-  //   [[maybe_unused]] simd::vreg_t vbd0, vbd1, vbd2, vbd3;
-  //   [[maybe_unused]] simd::vreg_t vc00 = {0}, vc01 = {0}, vc02 = {0}, vc03 =
-  //   {0};
-  //   [[maybe_unused]] simd::vreg_t vc10 = {0}, vc11 = {0}, vc12 = {0}, vc13 =
-  //   {0};
-  //   [[maybe_unused]] simd::vreg_t vc20 = {0}, vc21 = {0}, vc22 = {0}, vc23 =
-  //   {0};
-  //   [[maybe_unused]] simd::vreg_t vc30 = {0}, vc31 = {0}, vc32 = {0}, vc33 =
-  //   {0};
+  ivreg_t va_qs = {0};
+  ivreg_t va_qh = {0};
+  vreg_t vad = {0};
+  [[maybe_unused]] ivreg_t vb_qs0 = {0}, vb_qs1 = {0}, vb_qs2 = {0},
+                           vb_qs3 = {0};
+  [[maybe_unused]] simd::vreg_t vbd0, vbd1, vbd2, vbd3;
+  [[maybe_unused]] simd::vreg_t vc00 = {0}, vc01 = {0}, vc02 = {0}, vc03 = {0};
+  [[maybe_unused]] simd::vreg_t vc10 = {0}, vc11 = {0}, vc12 = {0}, vc13 = {0};
+  [[maybe_unused]] simd::vreg_t vc20 = {0}, vc21 = {0}, vc22 = {0}, vc23 = {0};
+  [[maybe_unused]] simd::vreg_t vc30 = {0}, vc31 = {0}, vc32 = {0}, vc33 = {0};
 
-  //   [[maybe_unused]] const auto *ai0{a + ((i + 0) * lda)};
-  //   [[maybe_unused]] const auto *ai1{a + ((i + 1) * lda)};
-  //   [[maybe_unused]] const auto *ai2{a + ((i + 2) * lda)};
-  //   [[maybe_unused]] const auto *ai3{a + ((i + 3) * lda)};
-  //   [[maybe_unused]] const auto *bj0{b + ((j + 0) * ldb)};
-  //   [[maybe_unused]] const auto *bj1{b + ((j + 1) * ldb)};
-  //   [[maybe_unused]] const auto *bj2{b + ((j + 2) * ldb)};
-  //   [[maybe_unused]] const auto *bj3{b + ((j + 3) * ldb)};
+  [[maybe_unused]] const auto *ai0{a + ((i + 0) * lda)};
+  [[maybe_unused]] const auto *ai1{a + ((i + 1) * lda)};
+  [[maybe_unused]] const auto *ai2{a + ((i + 2) * lda)};
+  [[maybe_unused]] const auto *ai3{a + ((i + 3) * lda)};
+  [[maybe_unused]] const auto *bj0{b + ((j + 0) * ldb)};
+  [[maybe_unused]] const auto *bj1{b + ((j + 1) * ldb)};
+  [[maybe_unused]] const auto *bj2{b + ((j + 2) * ldb)};
+  [[maybe_unused]] const auto *bj3{b + ((j + 3) * ldb)};
 
-  //   for (int k = 0; k < K; k++) {
+  for (int k = 0; k < K; k++) {
 
-  // #define FN(N1)                                                                 \
-//   if constexpr (B1 > N1) {                                                     \
-//     vb##N1##_qs = load_quants(bj##N1 + k);                                     \
-//     vbd##N1 = vset(GGML_FP16_TO_FP32(bj##N1[k].d));                            \
-//   }
-  //     LOOP(FN, 4)
-  // #undef FN
+#define FN(N1)                                                                 \
+  if constexpr (B1 > N1) {                                                     \
+    vb_qs##N1 = load_quants(bj##N1 + k);                                       \
+    vbd##N1 = vset(GGML_FP16_TO_FP32(bj##N1[k].d));                            \
+  }
+    LOOP(FN, 4)
+#undef FN
 
-  // #define INNER_FN(N0, N1)                                                       \
-//   if constexpr (B1 > 0) {                                                      \
-//     vc##N0##N1 =                                                               \
-//         madd(mul(vad, vbd##N1), mul_sum_us8_pairs_float(va_qs, vb##N1##_qs),   \
-//              vc##N0##N1);                                                      \
-//   }
-  // #define OUTER_FN(N0)                                                           \
-//   if constexpr (B0 > N0) {                                                     \
-//     va_qs = load_quants(ai##N0 + k);                                           \
-//     vad = vset(GGML_FP16_TO_FP32(ai##N0[k].d));                                \
-//     LOOP_INNER(INNER_FN, N0, 4)                                                \
-//   }
-  //     LOOP(OUTER_FN, 4)
-  // #undef INNER_FN
-  // #undef OUTER_FN
-  //   }
+#define INNER_FN(N0, N1)                                                       \
+  if constexpr (B1 > 0) {                                                      \
+    vc##N0##N1 = madd(mul(vad, vbd##N1),                                       \
+                      mul_sum_i8_pairs_float(va_qs, vb_qs##N1), vc##N0##N1);   \
+  }
+#define OUTER_FN(N0)                                                           \
+  if constexpr (B0 > N0) {                                                     \
+    va_qs = load_quants(ai##N0 + k);                                           \
+    va_qh = spread_bits(ai##N0[k].qh);                                         \
+    va_qh = andnot(va_qh, ivset((char)0xF0));                                  \
+    va_qs = _or(va_qs, va_qh);                                                 \
+    vad = vset(GGML_FP16_TO_FP32(ai##N0[k].d));                                \
+    LOOP_INNER(INNER_FN, N0, 4)                                                \
+  }
+    LOOP(OUTER_FN, 4)
+#undef INNER_FN
+#undef OUTER_FN
+  }
 
-  // #define INNER_FN(N0, N1)                                                       \
-//   if constexpr (B1 > N1) {                                                     \
-//     c[ldc * (j + N1) + (i + N0)] = reduce_sum(vc##N0##N1);                     \
-//   }
-  // #define OUTER_FN(N0)                                                           \
-//   if constexpr (B0 > N0) {                                                     \
-//     LOOP_INNER(INNER_FN, N0, 4)                                                \
-//   }
-  //   LOOP(OUTER_FN, 4)
-  // #undef INNER_FN
-  // #undef OUTER_FN
+#define INNER_FN(N0, N1)                                                       \
+  if constexpr (B1 > N1) {                                                     \
+    c[ldc * (j + N1) + (i + N0)] = reduce_sum(vc##N0##N1);                     \
+  }
+#define OUTER_FN(N0)                                                           \
+  if constexpr (B0 > N0) {                                                     \
+    LOOP_INNER(INNER_FN, N0, 4)                                                \
+  }
+  LOOP(OUTER_FN, 4)
+#undef INNER_FN
+#undef OUTER_FN
 }
 
 #endif // LAMM_KERNEL_Q5_0_HPP
