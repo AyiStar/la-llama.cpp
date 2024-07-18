@@ -42,4 +42,10 @@ template <> struct ggml_type_trait<GGML_TYPE_Q5_0> {
   static constexpr int super_block_size = QK5_0;
 };
 
+template <> struct ggml_type_trait<GGML_TYPE_Q5_1> {
+  typedef block_q5_1 dtype;
+  typedef block_q8_1 vec_dot_dtype;
+  static constexpr int super_block_size = QK5_1;
+};
+
 #endif // LAMM_GGML_TYPETRAIT

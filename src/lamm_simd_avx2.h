@@ -46,6 +46,11 @@ LA_INLINE ivreg_t sub(ivreg_t x, ivreg_t y) { return _mm256_sub_epi8(x, y); }
 // x * y: f32
 LA_INLINE vreg_t mul(vreg_t x, vreg_t y) { return _mm256_mul_ps(x, y); }
 
+// x & y
+LA_INLINE ivreg_t _and(ivreg_t x, ivreg_t y) {
+  return _mm256_and_si256(x, y);
+}
+
 // (~x) & y
 LA_INLINE ivreg_t andnot(ivreg_t x, ivreg_t y) {
   return _mm256_andnot_si256(x, y);

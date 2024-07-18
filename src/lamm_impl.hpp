@@ -6,6 +6,7 @@
 #include "lamm_kernel_q4_0.hpp"
 #include "lamm_kernel_q4_1.hpp"
 #include "lamm_kernel_q5_0.hpp"
+#include "lamm_kernel_q5_1.hpp"
 #include "lamm_kernel_q8_0.hpp"
 #include <cassert>
 
