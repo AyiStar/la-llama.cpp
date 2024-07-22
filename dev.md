@@ -89,7 +89,7 @@ Output a well-organized technical report.
 - [x] Q4_1
 - [ ] Q4_K
 - [x] Q5_0
-- [ ] Q5_1
+- [x] Q5_1
 - [ ] Q5_K
 - [ ] Q6_K
 - [x] Q8_0
