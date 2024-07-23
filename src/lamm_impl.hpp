@@ -3,6 +3,7 @@
 
 #include "lamm_common.h"
 #include "lamm_kernel_f32.hpp"
+#include "lamm_kernel_q2_k.hpp"
 #include "lamm_kernel_q4_0.hpp"
 #include "lamm_kernel_q4_1.hpp"
 #include "lamm_kernel_q5_0.hpp"

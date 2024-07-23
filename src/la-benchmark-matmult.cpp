@@ -173,9 +173,9 @@ int main(int argc, char **argv) {
 #ifdef LAMM_DEBUG
   printf("Debugging the correctness\n");
   // check the correctness
-  const int sizey = 4;
-  const int sizex = 128;
-  const int sizez = 4;
+  const int sizey = 8;
+  const int sizex = 256;
+  const int sizez = 8;
 #else
   const int sizey = 4096;
   const int sizex = 11008;

@@ -35,7 +35,7 @@ bool lamm_can_mul_mat(const struct ggml_compute_params *params,
     return false;
   }
   static const enum ggml_type supported_types[][2] = {
-      {GGML_TYPE_F32, GGML_TYPE_F32},   {GGML_TYPE_Q4_0, GGML_TYPE_Q8_0},
+      {GGML_TYPE_F32, GGML_TYPE_F32}, {GGML_TYPE_Q2_K, GGML_TYPE_Q8_K},  {GGML_TYPE_Q4_0, GGML_TYPE_Q8_0},
       {GGML_TYPE_Q4_1, GGML_TYPE_Q8_1}, {GGML_TYPE_Q5_0, GGML_TYPE_Q8_0},
       {GGML_TYPE_Q5_1, GGML_TYPE_Q8_1}, {GGML_TYPE_Q8_0, GGML_TYPE_Q8_0},
   };
@@ -101,6 +101,9 @@ void lamm_mul_mat(const struct ggml_compute_params *params,
   switch (A.type) {
   case GGML_TYPE_F32:
     mm_func = LAMMImpl<GGML_TYPE_F32>::matmul;
+    break;
+  case GGML_TYPE_Q2_K:
+    mm_func = LAMMImpl<GGML_TYPE_Q2_K>::matmul;
     break;
   case GGML_TYPE_Q4_0:
     mm_func = LAMMImpl<GGML_TYPE_Q4_0>::matmul;

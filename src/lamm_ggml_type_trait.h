@@ -12,6 +12,14 @@ template <> struct ggml_type_trait<GGML_TYPE_F32> {
   typedef float vec_dot_dtype;
 };
 
+static_assert (QK_K == 256);
+
+template <> struct ggml_type_trait<GGML_TYPE_Q2_K> {
+  typedef block_q2_K dtype;
+  typedef block_q8_K vec_dot_dtype;
+  static constexpr int super_block_size = QK_K;
+};
+
 template <> struct ggml_type_trait<GGML_TYPE_Q4_0> {
   typedef block_q4_0 dtype;
   typedef block_q8_0 vec_dot_dtype;
