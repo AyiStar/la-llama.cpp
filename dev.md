@@ -96,7 +96,7 @@ Output a well-organized technical report.
 
 #### Benchmarks
 - [x] Add arguments with different types.
-- [ ] Prepare more model weights.
+- [x] Prepare more model weights.
 - [ ] Benchmark more models.
 
 #### Autotune
