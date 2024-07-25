@@ -13,6 +13,7 @@
 #include <cassert>
 #include <iostream>
 
+#include <lsxintrin.h>
 #include <lasxintrin.h>
 
 // abstraction for loongarch_asx SIMD intrinsics
@@ -24,6 +25,8 @@ constexpr int kF32PerVec = kVecWidth / 32;
 
 using vreg_t = __m256;   // vector register type
 using ivreg_t = __m256i; // integer vector register type
+using hvreg_t = __m128;  // half vector register type
+using hivreg_t = __m128i; // half integer register type
 
 #ifdef __clang__
 #define VREGS_PREFIX "$vr"
@@ -41,11 +44,7 @@ typedef union {
   float f;
 } FloatInt;
 
-LA_INLINE vreg_t vset(const float val) {
-  FloatInt fi_tmpval = {.f = val};
-  return (__m256)__lasx_xvreplgr2vr_w(fi_tmpval.i);
-}
-
+// Convert two __m128i to __m256i
 LA_INLINE ivreg_t lasx_set_q(__m128i inhi, __m128i inlo) {
   __m256i out;
   __asm__ volatile(".irp i," __ALL_REGS "\n\t"
@@ -73,8 +72,85 @@ LA_INLINE ivreg_t lasx_set_q(__m128i inhi, __m128i inlo) {
   return out;
 }
 
+// Convert __m256i low part to __m128i
+LA_INLINE __m128i lasx_extracti128_lo(__m256i in)
+{
+    __m128i out;
+    __asm__ volatile (
+        ".ifnc %[out], %[in]                 \n\t"
+        ".irp i," __ALL_REGS                "\n\t"
+        " .ifc %[out], " VREGS_PREFIX "\\i   \n\t"
+        "  .irp j," __ALL_REGS              "\n\t"
+        "   .ifc %[in], " XREGS_PREFIX "\\j  \n\t"
+        "    vori.b $vr\\i, $vr\\j, 0        \n\t"
+        "   .endif                           \n\t"
+        "  .endr                             \n\t"
+        " .endif                             \n\t"
+        ".endr                               \n\t"
+        ".endif                              \n\t"
+        : [out] "=f" (out) : [in] "f" (in)
+    );
+    return out;
+}
+// Convert __m256i high part to __m128i
+LA_INLINE __m128i lasx_extracti128_hi(__m256i in)
+{
+    __m128i out;
+    __asm__ volatile (
+        ".irp i," __ALL_REGS                "\n\t"
+        " .ifc %[out], " VREGS_PREFIX "\\i   \n\t"
+        "  .irp j," __ALL_REGS              "\n\t"
+        "   .ifc %[in], " XREGS_PREFIX "\\j  \n\t"
+        "    xvpermi.q $xr\\i, $xr\\j, 0x11  \n\t"
+        "   .endif                           \n\t"
+        "  .endr                             \n\t"
+        " .endif                             \n\t"
+        ".endr                               \n\t"
+        : [out] "=f" (out) : [in] "f" (in)
+    );
+    return out;
+}
+
+LA_INLINE __m256i lasx_shuffle_b(__m256i a, __m256i b)
+{
+    __m256i mask_f, zero, tmp0, tmp2, mask;
+    int f = 0x8f;
+    mask_f = __lasx_xvreplgr2vr_b(f);
+    zero = __lasx_xvldi(0);
+    tmp0 = __lasx_xvand_v(b, mask_f); // get mask with low 4 bit and sign bits
+    tmp0 = __lasx_xvori_b(tmp0, 0x10); // make each mask or  with 0x10 prepare for positive
+    mask = __lasx_xvsle_b(zero, tmp0); // if mask >= 0, set mask
+    tmp2 = __lasx_xvand_v(tmp0, mask); // maskout the in2 < ones
+    return __lasx_xvshuf_b(a, zero, tmp2);
+}
+
+
+LA_INLINE vreg_t vset(const float val) {
+  FloatInt fi_tmpval = {.f = val};
+  return (__m256)__lasx_xvreplgr2vr_w(fi_tmpval.i);
+}
+
+LA_INLINE ivreg_t ivset(const char i) { return __lasx_xvreplgr2vr_b(i); }
+LA_INLINE hivreg_t hivset(const char i) { return __lsx_vreplgr2vr_b(i); }
+
+LA_INLINE ivreg_t extend(hivreg_t h) {
+  __m128i sign = __lsx_vslti_b(a, 0);
+  __m128i vlo = __lsx_vilvl_b(sign, a);
+  __m128i vhi = __lsx_vilvh_b(sign, a);
+  return lasx_set_q(vhi, vlo);
+}
+
+LA_INLINE hivreg_t trunc(ivreg_t i, int select) {
+  return (select) ? lasx_extracti128_hi(i) : lasx_extracti128_lo(i);
+}
+
+LA_INLINE vreg_t to_float(ivreg_t i) { return __lasx_xvffint_s_w(i); }
+
 // x + y: f32
 LA_INLINE vreg_t add(vreg_t x, vreg_t y) { return __lasx_xvfadd_s(x, y); }
+
+// x + y: int32
+LA_INLINE ivreg_t add(ivreg_t x, ivreg_t y) { return __lasx_xvadd_w(x, y); }
 
 // x * y + z: f32
 LA_INLINE vreg_t madd(vreg_t x, vreg_t y, vreg_t z) {
@@ -87,8 +163,65 @@ LA_INLINE vreg_t sub(vreg_t x, vreg_t y) { return __lasx_xvfsub_s(x, y); }
 // x * y: f32
 LA_INLINE vreg_t mul(vreg_t x, vreg_t y) { return __lasx_xvfmul_s(x, y); }
 
+// x: int8 * y: int8 -> int16
+LA_INLINE ivreg_t mul(ivreg_t ax, ivreg_t sy) {
+  __m256i tmp1, tmp2;
+  tmp1 = __lasx_xvmulwev_w_h(a, b);
+  tmp2 = __lasx_xvmulwod_w_h(a, b);
+  return __lasx_xvadd_w(tmp1, tmp2);
+};
+
+// x: uint8 * y: int8 -> int16
+LA_INLINE ivreg_t mul_ubs(ivreg_t ax, ivreg_t sy) {
+  __m256i tmp1, tmp2;
+  tmp1 = __lasx_xvmulwev_h_b(a, b);
+  tmp2 = __lasx_xvmulwod_h_b(a, b);
+  return __lasx_xvsadd_h(tmp1, tmp2);
+};
+
+// x & y
+LA_INLINE ivreg_t _and(ivreg_t x, ivreg_t y) {
+  return __lasx_xvand_v(x, y);
+}
+LA_INLINE hivreg_t _and(hivreg_t x, hivreg_t y) {
+  return __lsx_vand_v(x, y);
+}
+
 // (~x) & y: int
 LA_INLINE ivreg_t andnot(ivreg_t x, ivreg_t y) { return __lasx_xvandn_v(x, y); }
+
+// x | y
+LA_INLINE ivreg_t _or(ivreg_t x, ivreg_t y) { return __lasx_xvor_v(x, y); }
+
+// x: int16 >> n
+LA_INLINE ivreg_t logic_shift_right(ivreg_t x, int n) { return __lasx_xvsrl_h(x, n); }
+LA_INLINE hivreg_t logic_shift_right(hivreg_t x, int n) { return __lsx_vsrl_h(x, n); }
+
+// TODO
+LA_INLINE ivreg_t shuffle(ivreg_t x, ivreg_t y) { return lasx_shuffle_b(x, y); }
+
+
+LA_INLINE __m256i lasx_insertf128( __m128i x, __m128i y)
+{
+    return lasx_set_q(x, y);
+}
+LA_INLINE ivreg_t concat(hivreg_t a, hivreg_t b) {
+  return lasx_insertf128(a, b);
+}
+
+// 32 bits -> 256 bits
+LA_INLINE ivreg_t spread_bits(const uint8_t *x) {
+    uint32_t x32;
+    memcpy(&x32, x, sizeof(uint32_t));
+    const __m256i shuf_mask = lasx_set_d(
+            0x0303030303030303, 0x0202020202020202,
+            0x0101010101010101, 0x0000000000000000);
+
+    __m256i bytes = lasx_shuffle_b(__lasx_xvreplgr2vr_w(x32), shuf_mask);
+    const __m256i bit_mask = __lasx_xvreplgr2vr_d(0x7fbfdfeff7fbfdfe);
+    bytes = __lasx_xvor_v(bytes, bit_mask);
+    return __lasx_xvseq_b(bytes, __lasx_xvreplgr2vr_d(-1));
+}
 
 // Convert __m256i low part to __m128i
 LA_INLINE __m128i lasx_extracti128_lo(__m256i in) {
@@ -151,8 +284,11 @@ LA_INLINE float reduce_sum(vreg_t x) {
 
 // load from float*
 LA_INLINE vreg_t load(const float *p) { return (vreg_t)__lasx_xvld(p, 0); }
-// load from quantized block
+// load from uint8_t*
+LA_INLINE ivreg_t load(const char *p) { return __lasx_xvld((const __m256i *)p, 0); }
+LA_INLINE hivreg_t loadh(const char *p) { return __lsx_vld((const __m128i *)p, 0); }
 
+// load from quantized block
 // Q4_0
 LA_INLINE ivreg_t load_quants(const block_q4_0 *p) {
   static_assert(ggml_type_trait<GGML_TYPE_Q4_0>::super_block_size == 32);
@@ -164,6 +300,22 @@ LA_INLINE ivreg_t load_quants(const block_q4_0 *p) {
 // Q4_1
 LA_INLINE ivreg_t load_quants(const block_q4_1 *p) {
   static_assert(ggml_type_trait<GGML_TYPE_Q4_1>::super_block_size == 32);
+  const __m128i lo = __lsx_vld((const __m128i *)(p->qs), 0);
+  __m128i hi = __lsx_vsrli_h(lo, 4);
+  return __lasx_xvandi_b(lasx_set_q(hi, lo), 0xf);
+}
+
+// Q5_0
+LA_INLINE ivreg_t load_quants(const block_q5_0 *p) {
+  static_assert(ggml_type_trait<GGML_TYPE_Q5_0>::super_block_size == 32);
+  const __m128i lo = __lsx_vld((const __m128i *)(p->qs), 0);
+  __m128i hi = __lsx_vsrli_h(lo, 4);
+  return __lasx_xvandi_b(lasx_set_q(hi, lo), 0xf);
+}
+
+// Q5_1
+LA_INLINE ivreg_t load_quants(const block_q5_1 *p) {
+  static_assert(ggml_type_trait<GGML_TYPE_Q5_1>::super_block_size == 32);
   const __m128i lo = __lsx_vld((const __m128i *)(p->qs), 0);
   __m128i hi = __lsx_vsrli_h(lo, 4);
   return __lasx_xvandi_b(lasx_set_q(hi, lo), 0xf);
