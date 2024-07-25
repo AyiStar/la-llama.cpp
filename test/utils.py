@@ -14,11 +14,22 @@ class LAMMCommand:
         make_options = [f'LAMM_OPT_LEVEL={opt_level}']
         if debug:
             make_options.append('LAMM_DEBUG=1')
-        compile_cmd = ['make', 'benchmark'] + make_options
+        compile_cmd = ['make'] + make_options
         return compile_cmd        
     
     @staticmethod
     def run_benchmark(ggml_type: str, n_threads: int=1, n_iters: int=1) -> list[str]:
         benchmark_options = ['-d', str(ggml_type), '-t', str(n_threads), '-i', str(n_iters)]
         run_cmd = ['./src/la-benchmark-matmult'] + benchmark_options
+        return run_cmd
+    
+    @staticmethod
+    def run_main(model_path: str, n_threads: int=1, prompt: str='Hello', n_tokens: int=100) -> list[str]:
+        benchmark_options = [
+            '-m', model_path, 
+            '-t', str(n_threads),
+            '-n', str(n_tokens),
+            '-p', prompt
+        ]
+        run_cmd = ['./src/main'] + benchmark_options
         return run_cmd

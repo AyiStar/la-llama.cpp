@@ -7,7 +7,7 @@ import pytest
 
 LOGGER = logging.getLogger(__name__)
 
-@pytest.fixture(params=[0, 1, 2, 3])
+@pytest.fixture(params=[0, 1, 2, 3], scope='module')
 def compile_lamm(request):
     subprocess.run(
         args=LAMMCommand.clean(),
