@@ -25,12 +25,22 @@ constexpr int kF32PerVec = kVecWidth / 32;
 
 using vreg_t = __m256;   // vector register type
 using ivreg_t = __m256i; // integer vector register type
+using hvreg_t = __m128;  // half vector register type
+using hivreg_t = __m128i; // half integer register type
 
 LA_INLINE vreg_t vset(const float f) { return _mm256_set1_ps(f); }
 LA_INLINE ivreg_t ivset(const char i) { return _mm256_set1_epi8(i); }
+LA_INLINE hivreg_t hivset(const char i) { return _mm_set1_epi8(i); }
+
+LA_INLINE ivreg_t extend(hivreg_t h) { return _mm256_cvtepi8_epi16(h); }
+LA_INLINE hivreg_t trunc(ivreg_t i, int select) { return _mm256_extracti128_si256(i, select); }
+LA_INLINE vreg_t to_float(ivreg_t i) { return _mm256_cvtepi32_ps(i); }
 
 // x + y: f32
 LA_INLINE vreg_t add(vreg_t x, vreg_t y) { return _mm256_add_ps(x, y); }
+
+// x + y: int
+LA_INLINE ivreg_t add(ivreg_t x, ivreg_t y) { return _mm256_add_epi32(x, y); }
 
 // x * y + z: f32
 LA_INLINE vreg_t madd(vreg_t x, vreg_t y, vreg_t z) {
@@ -46,9 +56,18 @@ LA_INLINE ivreg_t sub(ivreg_t x, ivreg_t y) { return _mm256_sub_epi8(x, y); }
 // x * y: f32
 LA_INLINE vreg_t mul(vreg_t x, vreg_t y) { return _mm256_mul_ps(x, y); }
 
+// x: int8 * y: int8 -> int16
+LA_INLINE ivreg_t mul(ivreg_t ax, ivreg_t sy) { return _mm256_madd_epi16(ax, sy); };
+
+// x: uint8 * y: int8 -> int16
+LA_INLINE ivreg_t mul_ubs(ivreg_t ax, ivreg_t sy) { return _mm256_maddubs_epi16(ax, sy); };
+
 // x & y
 LA_INLINE ivreg_t _and(ivreg_t x, ivreg_t y) {
   return _mm256_and_si256(x, y);
+}
+LA_INLINE hivreg_t _and(hivreg_t x, hivreg_t y) {
+  return _mm_and_si128(x, y);
 }
 
 // (~x) & y
@@ -58,6 +77,19 @@ LA_INLINE ivreg_t andnot(ivreg_t x, ivreg_t y) {
 
 // x | y
 LA_INLINE ivreg_t _or(ivreg_t x, ivreg_t y) { return _mm256_or_si256(x, y); }
+
+// x: int16 >> n
+LA_INLINE ivreg_t logic_shift_right(ivreg_t x, int n) { return _mm256_srli_epi16(x, n); }
+LA_INLINE hivreg_t logic_shift_right(hivreg_t x, int n) { return _mm_srli_epi16(x, n); }
+
+LA_INLINE ivreg_t shuffle(ivreg_t x, ivreg_t y) { return _mm256_shuffle_epi8(x, y); }
+
+#define MM256_SET_M128I(a, b)                                                  \
+  _mm256_insertf128_si256(_mm256_castsi128_si256(b), (a), 1)
+
+LA_INLINE ivreg_t concat(hivreg_t a, hivreg_t b) {
+  return _mm256_insertf128_si256(_mm256_castsi128_si256(b), (a), 1);
+}
 
 // 32 bits -> 256 bits
 LA_INLINE ivreg_t spread_bits(const uint8_t *x) {
@@ -87,6 +119,11 @@ LA_INLINE float reduce_sum(vreg_t x) {
 
 // load from float*
 LA_INLINE vreg_t load(const float *p) { return _mm256_loadu_ps(p); }
+
+// load from uint8_t*
+LA_INLINE ivreg_t load(const char *p) { return _mm256_loadu_si256((const ivreg_t *)p); }
+LA_INLINE hivreg_t loadh(const char *p) { return _mm_loadu_si128((const hivreg_t *)p); }
+
 
 // load from quantized block
 
@@ -146,14 +183,11 @@ LA_INLINE ivreg_t load_quants(const block_q8_1 *p) {
   return _mm256_loadu_si256((const __m256i *)(p->qs));
 };
 
-#define MM256_SET_M128I(a, b)                                                  \
-  _mm256_insertf128_si256(_mm256_castsi128_si256(b), (a), 1)
-
 // add int16_t pairwise and return as float vector
 inline vreg_t sum_i16_pairs_float(const ivreg_t x) {
   const __m256i ones = _mm256_set1_epi16(1);
   const __m256i summed_pairs = _mm256_madd_epi16(ones, x);
-  return _mm256_cvtepi32_ps(summed_pairs);
+  return to_float(summed_pairs);
 }
 
 inline vreg_t mul_sum_us8_pairs_float(const ivreg_t ax, const ivreg_t sy) {
