@@ -72,6 +72,12 @@ LA_INLINE ivreg_t lasx_set_q(__m128i inhi, __m128i inlo) {
   return out;
 }
 
+LA_INLINE __m256i lasx_set_d(int64_t a, int64_t b, int64_t c, int64_t d)
+{
+    v4i64 __ret = {d, c, b, a};
+    return (__m256i)__ret;
+}
+
 // Convert __m256i low part to __m128i
 LA_INLINE __m128i lasx_extracti128_lo(__m256i in)
 {
@@ -134,9 +140,9 @@ LA_INLINE ivreg_t ivset(const char i) { return __lasx_xvreplgr2vr_b(i); }
 LA_INLINE hivreg_t hivset(const char i) { return __lsx_vreplgr2vr_b(i); }
 
 LA_INLINE ivreg_t extend(hivreg_t h) {
-  __m128i sign = __lsx_vslti_b(a, 0);
-  __m128i vlo = __lsx_vilvl_b(sign, a);
-  __m128i vhi = __lsx_vilvh_b(sign, a);
+  __m128i sign = __lsx_vslti_b(h, 0);
+  __m128i vlo = __lsx_vilvl_b(sign, h);
+  __m128i vhi = __lsx_vilvh_b(sign, h);
   return lasx_set_q(vhi, vlo);
 }
 
@@ -160,11 +166,14 @@ LA_INLINE vreg_t madd(vreg_t x, vreg_t y, vreg_t z) {
 // x - y: f32
 LA_INLINE vreg_t sub(vreg_t x, vreg_t y) { return __lasx_xvfsub_s(x, y); }
 
+// x - y: int8
+LA_INLINE ivreg_t sub(ivreg_t x, ivreg_t y) { return __lasx_xvsub_b(x, y); }
+
 // x * y: f32
 LA_INLINE vreg_t mul(vreg_t x, vreg_t y) { return __lasx_xvfmul_s(x, y); }
 
 // x: int8 * y: int8 -> int16
-LA_INLINE ivreg_t mul(ivreg_t ax, ivreg_t sy) {
+LA_INLINE ivreg_t mul(ivreg_t a, ivreg_t b) {
   __m256i tmp1, tmp2;
   tmp1 = __lasx_xvmulwev_w_h(a, b);
   tmp2 = __lasx_xvmulwod_w_h(a, b);
@@ -172,7 +181,7 @@ LA_INLINE ivreg_t mul(ivreg_t ax, ivreg_t sy) {
 };
 
 // x: uint8 * y: int8 -> int16
-LA_INLINE ivreg_t mul_ubs(ivreg_t ax, ivreg_t sy) {
+LA_INLINE ivreg_t mul_ubs(ivreg_t a, ivreg_t b) {
   __m256i tmp1, tmp2;
   tmp1 = __lasx_xvmulwev_h_b(a, b);
   tmp2 = __lasx_xvmulwod_h_b(a, b);
@@ -194,8 +203,8 @@ LA_INLINE ivreg_t andnot(ivreg_t x, ivreg_t y) { return __lasx_xvandn_v(x, y); }
 LA_INLINE ivreg_t _or(ivreg_t x, ivreg_t y) { return __lasx_xvor_v(x, y); }
 
 // x: int16 >> n
-LA_INLINE ivreg_t logic_shift_right(ivreg_t x, int n) { return __lasx_xvsrl_h(x, n); }
-LA_INLINE hivreg_t logic_shift_right(hivreg_t x, int n) { return __lsx_vsrl_h(x, n); }
+LA_INLINE ivreg_t logic_shift_right(ivreg_t x, int n) { return __lasx_xvsrli_h(x, n); }
+LA_INLINE hivreg_t logic_shift_right(hivreg_t x, int n) { return __lsx_vsrli_h(x, n); }
 
 // TODO
 LA_INLINE ivreg_t shuffle(ivreg_t x, ivreg_t y) { return lasx_shuffle_b(x, y); }
@@ -221,42 +230,6 @@ LA_INLINE ivreg_t spread_bits(const uint8_t *x) {
     const __m256i bit_mask = __lasx_xvreplgr2vr_d(0x7fbfdfeff7fbfdfe);
     bytes = __lasx_xvor_v(bytes, bit_mask);
     return __lasx_xvseq_b(bytes, __lasx_xvreplgr2vr_d(-1));
-}
-
-// Convert __m256i low part to __m128i
-LA_INLINE __m128i lasx_extracti128_lo(__m256i in) {
-  __m128i out;
-  __asm__ volatile(".ifnc %[out], %[in]                 \n\t"
-                   ".irp i," __ALL_REGS "\n\t"
-                   " .ifc %[out], " VREGS_PREFIX "\\i   \n\t"
-                   "  .irp j," __ALL_REGS "\n\t"
-                   "   .ifc %[in], " XREGS_PREFIX "\\j  \n\t"
-                   "    vori.b $vr\\i, $vr\\j, 0        \n\t"
-                   "   .endif                           \n\t"
-                   "  .endr                             \n\t"
-                   " .endif                             \n\t"
-                   ".endr                               \n\t"
-                   ".endif                              \n\t"
-                   : [out] "=f"(out)
-                   : [in] "f"(in));
-  return out;
-}
-
-// Convert __m256i high part to __m128i
-LA_INLINE __m128i lasx_extracti128_hi(__m256i in) {
-  __m128i out;
-  __asm__ volatile(".irp i," __ALL_REGS "\n\t"
-                   " .ifc %[out], " VREGS_PREFIX "\\i   \n\t"
-                   "  .irp j," __ALL_REGS "\n\t"
-                   "   .ifc %[in], " XREGS_PREFIX "\\j  \n\t"
-                   "    xvpermi.q $xr\\i, $xr\\j, 0x11  \n\t"
-                   "   .endif                           \n\t"
-                   "  .endr                             \n\t"
-                   " .endif                             \n\t"
-                   ".endr                               \n\t"
-                   : [out] "=f"(out)
-                   : [in] "f"(in));
-  return out;
 }
 
 // sum 4 f32 -> f32
@@ -351,6 +324,17 @@ LA_INLINE vreg_t mul_sum_us8_pairs_float(const ivreg_t ax, const ivreg_t sy) {
   const ivreg_t dot = lasx_maddubs_h(ax, sy);
   return sum_i16_pairs_float(dot);
 }
+
+LA_INLINE vreg_t mul_sum_i8_pairs_float(const ivreg_t x, const ivreg_t y) {
+
+    // Get absolute values of x vectors
+    const __m256i ax = __lasx_xvsigncov_b(x, x);
+    // Sign the values of the y vectors
+    const __m256i sy = __lasx_xvsigncov_b(x, y);
+
+    return mul_sum_us8_pairs_float(ax, sy);
+}
+
 } // namespace simd
 
 #endif // LAMM_SIMD_LOONGARCH_H
