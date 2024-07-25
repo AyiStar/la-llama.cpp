@@ -84,7 +84,7 @@ Output a well-organized technical report.
 - [x] Meta-programming the block kernel with macros.
 
 #### Quantization Methods
-- [ ] Q2_K
+- [x] Q2_K
 - [x] Q4_0
 - [x] Q4_1
 - [ ] Q4_K
