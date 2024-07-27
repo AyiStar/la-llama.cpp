@@ -12,7 +12,7 @@ template <> struct ggml_type_trait<GGML_TYPE_F32> {
   typedef float vec_dot_dtype;
 };
 
-static_assert (QK_K == 256);
+static_assert(QK_K == 256);
 
 template <> struct ggml_type_trait<GGML_TYPE_Q2_K> {
   typedef block_q2_K dtype;

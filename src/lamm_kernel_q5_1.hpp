@@ -49,8 +49,8 @@ LA_INLINE void lamm_naive_kernel(const block_q5_1 *a, const block_q8_1 *b,
       int8_t qa_1 = (aik->qs[h] >> 4) | (qah_1 << 4);
       sumi += (qa_0 * bjk->qs[h]) + (qa_1 * bjk->qs[h + Q / 2]);
     }
-    sum += (GGML_FP16_TO_FP32(aik->d) * GGML_FP16_TO_FP32(bjk->d)) * sumi
-          + (GGML_FP16_TO_FP32(aik->m) * GGML_FP16_TO_FP32(bjk->s));
+    sum += (GGML_FP16_TO_FP32(aik->d) * GGML_FP16_TO_FP32(bjk->d)) * sumi +
+           (GGML_FP16_TO_FP32(aik->m) * GGML_FP16_TO_FP32(bjk->s));
   }
   c[j * ldc + i] = sum;
 }
@@ -121,14 +121,15 @@ LA_INLINE void lamm_simd_block_kernel(const block_q5_1 *a, const block_q8_1 *b,
 #define INNER_FN(N0, N1)                                                       \
   if constexpr (B1 > 0) {                                                      \
     vc##N0##N1 = madd(mul(vad, vbd##N1),                                       \
-                      mul_sum_us8_pairs_float(va_qs, vb_qs##N1), vc##N0##N1);   \
-    summs[N0][N1] += GGML_FP16_TO_FP32(ai##N0[k].m) * GGML_FP16_TO_FP32(bj##N1[k].s); \
+                      mul_sum_us8_pairs_float(va_qs, vb_qs##N1), vc##N0##N1);  \
+    summs[N0][N1] +=                                                           \
+        GGML_FP16_TO_FP32(ai##N0[k].m) * GGML_FP16_TO_FP32(bj##N1[k].s);       \
   }
 #define OUTER_FN(N0)                                                           \
   if constexpr (B0 > N0) {                                                     \
     va_qs = load_quants(ai##N0 + k);                                           \
     va_qh = spread_bits(ai##N0[k].qh);                                         \
-    va_qh = _and(va_qh, simd::ivset(0x10));                                  \
+    va_qh = _and(va_qh, simd::ivset(0x10));                                    \
     va_qs = _or(va_qs, va_qh);                                                 \
     vad = vset(GGML_FP16_TO_FP32(ai##N0[k].d));                                \
     LOOP_INNER(INNER_FN, N0, 4)                                                \
@@ -140,7 +141,7 @@ LA_INLINE void lamm_simd_block_kernel(const block_q5_1 *a, const block_q8_1 *b,
 
 #define INNER_FN(N0, N1)                                                       \
   if constexpr (B1 > N1) {                                                     \
-    c[ldc * (j + N1) + (i + N0)] = reduce_sum(vc##N0##N1) + summs[N0][N1];                     \
+    c[ldc * (j + N1) + (i + N0)] = reduce_sum(vc##N0##N1) + summs[N0][N1];     \
   }
 #define OUTER_FN(N0)                                                           \
   if constexpr (B0 > N0) {                                                     \
