@@ -167,7 +167,8 @@ LA_INLINE void lamm_simd_block_kernel(const block_q2_K *a, const block_q8_K *b,
 
   static_assert(B0 > 0 && B0 <= 4);
   static_assert(B1 > 0 && B1 <= 4);
-  // std::cout << "Q2_K SIMD block called with B0=" << B0 << ", B1=" << B1 << std::endl;
+  // std::cout << "Q2_K SIMD block called with B0=" << B0 << ", B1=" << B1 <<
+  // std::endl;
   using namespace simd;
 
   const ivreg_t m3 = ivset(3);
@@ -281,12 +282,12 @@ LA_INLINE void lamm_simd_block_kernel(const block_q2_K *a, const block_q8_K *b,
 #undef INNER_FN
 #undef OUTER_FN
 
-#define FN(N)                                                                 \
-  if constexpr (B0 > N) {                                                     \
-    ai##N++; \
-  } \
-  if constexpr (B1 > N) {                                                     \
-    bj##N++; \
+#define FN(N)                                                                  \
+  if constexpr (B0 > N) {                                                      \
+    ai##N++;                                                                   \
+  }                                                                            \
+  if constexpr (B1 > N) {                                                      \
+    bj##N++;                                                                   \
   }
     LOOP(FN, 4)
 #undef FN
