@@ -74,7 +74,7 @@ LA_INLINE void lamm_naive_kernel(const block_q2_K *a, const block_q8_K *b,
   c[j * ldc + i] = sumf;
 }
 
-static LA_INLINE __m256i get_scale_shuffle_q3k(int i) {
+static LA_INLINE simd::ivreg_t get_scale_shuffle_q3k(int i) {
   static const uint8_t k_shuffle[128] = {
       0,  1,  0,  1,  0,  1,  0,  1,  0,  1,  0,  1,  0,  1,  0,  1,
       2,  3,  2,  3,  2,  3,  2,  3,  2,  3,  2,  3,  2,  3,  2,  3,
@@ -126,7 +126,7 @@ LA_INLINE void lamm_simd_kernel(const block_q2_K *a, const block_q8_K *b,
     ivreg_t sumi = {0};
     const float d = bjk->d * GGML_FP16_TO_FP32(aik->d);
 
-    for (int j = 0; j < 2; ++j) {
+    for (int l = 0; l < 2; ++l) {
 
       // for a
       const ivreg_t q2bits = load(q2);
@@ -137,15 +137,15 @@ LA_INLINE void lamm_simd_kernel(const block_q2_K *a, const block_q8_K *b,
       const ivreg_t q2_3 = _and(logic_shift_right(q2bits, 6), m3);
 
       // for a and b
-      ivreg_t p0 = mul_ubs(q2_0, q8_0[j]);
-      ivreg_t p1 = mul_ubs(q2_1, q8_1[j]);
-      ivreg_t p2 = mul_ubs(q2_2, q8_2[j]);
-      ivreg_t p3 = mul_ubs(q2_3, q8_3[j]);
+      ivreg_t p0 = mul_ubs(q2_0, q8_0[l]);
+      ivreg_t p1 = mul_ubs(q2_1, q8_1[l]);
+      ivreg_t p2 = mul_ubs(q2_2, q8_2[l]);
+      ivreg_t p3 = mul_ubs(q2_3, q8_3[l]);
 
-      p0 = mul(shuffle(scales[j], get_scale_shuffle_q3k(0)), p0);
-      p1 = mul(shuffle(scales[j], get_scale_shuffle_q3k(1)), p1);
-      p2 = mul(shuffle(scales[j], get_scale_shuffle_q3k(2)), p2);
-      p3 = mul(shuffle(scales[j], get_scale_shuffle_q3k(3)), p3);
+      p0 = mul(shuffle(scales[l], get_scale_shuffle_q3k(0)), p0);
+      p1 = mul(shuffle(scales[l], get_scale_shuffle_q3k(1)), p1);
+      p2 = mul(shuffle(scales[l], get_scale_shuffle_q3k(2)), p2);
+      p3 = mul(shuffle(scales[l], get_scale_shuffle_q3k(3)), p3);
 
       p0 = add(p0, p1);
       p2 = add(p2, p3);
@@ -167,7 +167,7 @@ LA_INLINE void lamm_simd_block_kernel(const block_q2_K *a, const block_q8_K *b,
 
   static_assert(B0 > 0 && B0 <= 4);
   static_assert(B1 > 0 && B1 <= 4);
-
+  // std::cout << "Q2_K SIMD block called with B0=" << B0 << ", B1=" << B1 << std::endl;
   using namespace simd;
 
   const ivreg_t m3 = ivset(3);
@@ -184,15 +184,6 @@ LA_INLINE void lamm_simd_block_kernel(const block_q2_K *a, const block_q8_K *b,
 
   [[maybe_unused]] ivreg_t bsum0 = {0}, bsum1 = {0}, bsum2 = {0}, bsum3 = {0};
   [[maybe_unused]] vreg_t bd0 = {0}, bd1 = {0}, bd2 = {0}, bd3 = {0};
-
-  [[maybe_unused]] ivreg_t sumi00 = {0}, sumi01 = {0}, sumi02 = {0},
-                           sumi03 = {0};
-  [[maybe_unused]] ivreg_t sumi10 = {0}, sumi11 = {0}, sumi12 = {0},
-                           sumi13 = {0};
-  [[maybe_unused]] ivreg_t sumi20 = {0}, sumi21 = {0}, sumi22 = {0},
-                           sumi23 = {0};
-  [[maybe_unused]] ivreg_t sumi30 = {0}, sumi31 = {0}, sumi32 = {0},
-                           sumi33 = {0};
 
   [[maybe_unused]] vreg_t acc00 = {0}, acc01 = {0}, acc02 = {0}, acc03 = {0};
   [[maybe_unused]] vreg_t acc10 = {0}, acc11 = {0}, acc12 = {0}, acc13 = {0};
@@ -289,6 +280,16 @@ LA_INLINE void lamm_simd_block_kernel(const block_q2_K *a, const block_q8_K *b,
     LOOP(OUTER_FN, 4)
 #undef INNER_FN
 #undef OUTER_FN
+
+#define FN(N)                                                                 \
+  if constexpr (B0 > N) {                                                     \
+    ai##N++; \
+  } \
+  if constexpr (B1 > N) {                                                     \
+    bj##N++; \
+  }
+    LOOP(FN, 4)
+#undef FN
   } // loop `k`
 
 #define INNER_FN(N0, N1)                                                       \

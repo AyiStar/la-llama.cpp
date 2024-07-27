@@ -67,7 +67,7 @@ public:
     }
     int M = C.row, N = C.col, K = A.col;
     assert(M == A.row && N == B.col && K == B.row);
-    assert(K % simd::kF32PerVec == 0);
+    assert(A.type != GGML_TYPE_F32 || K % simd::kF32PerVec == 0);
     assert(nth > 0);
     // split thread-local job by M
     int job_size = M / nth;
@@ -97,8 +97,12 @@ public:
       }
     }
     int M = C.row, N = C.col, K = A.col;
-    assert(M == A.row && N == B.col && K == B.row);
-    assert(nth > 0);
+    if (!(M == A.row && N == B.col && K == B.row)) {
+      std::cout << "Assertion error" << std::endl;
+      std::abort();
+    }
+    // assert(M == A.row && N == B.col && K == B.row);
+    // assert(nth > 0);
     // split thread-local job by M
     int job_size = M / nth;
     int job_start = ith * job_size;
@@ -116,7 +120,10 @@ public:
     int jj = (L1 / kBlockSize * kBlockSize);
     int64_t lda{A.ld}, ldb{B.ld}, ldc{C.ld};
 
-    assert((K % simd::kF32PerVec) == 0);
+    if (A.type == GGML_TYPE_F32 && (K % simd::kF32PerVec) != 0) {
+      std::cout << "K= " << K << std::endl;
+      std::abort();
+    }
     dtype *a = (dtype *)(A.data);
     vec_dot_dtype *b = (vec_dot_dtype *)(B.data);
     float *c = (float *)(C.data);

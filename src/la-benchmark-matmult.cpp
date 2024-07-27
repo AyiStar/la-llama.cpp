@@ -173,9 +173,9 @@ int main(int argc, char **argv) {
 #ifdef LAMM_DEBUG
   printf("Debugging the correctness\n");
   // check the correctness
-  const int sizey = 32;
-  const int sizex = 512;
-  const int sizez = 32;
+  const int sizey = 33;
+  const int sizex = 4096;
+  const int sizez = 18;
 #else
   const int sizey = 4096;
   const int sizex = 11008;
@@ -371,7 +371,7 @@ void do_benchmark(int sizex, int sizey, int sizez, struct ggml_cgraph *g1,
     // quantizuation will be slightly different
     float sum_of_result = tensor_sum_elements(g1->nodes[0]);
     float delta = std::abs(sum_of_result - correct) / std::abs(correct);
-    float allowed_delta = 1e-2; //  Let's accept an epsilon of 10^-3
+    float allowed_delta = 1e-2;
 
     if (delta > allowed_delta) {
       printf("\nABORT - ERROR in Matrix Multiplication result - expected "

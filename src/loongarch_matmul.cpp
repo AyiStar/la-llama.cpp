@@ -98,7 +98,8 @@ void lamm_mul_mat(const struct ggml_compute_params *params,
   C.col = ne11;
   C.ld = nb1 / ggml_type_size(dst->type);
 
-  decltype(LAMMImpl<GGML_TYPE_F32>::matmul) *mm_func = nullptr;
+  using MatMulFuncPtr = void(*)(const Matrix &A, const Matrix &B, const Matrix &C, int ith, int nth);
+  MatMulFuncPtr mm_func = nullptr;
   switch (A.type) {
   case GGML_TYPE_F32:
     mm_func = LAMMImpl<GGML_TYPE_F32>::matmul;
