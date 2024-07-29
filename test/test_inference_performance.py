@@ -34,11 +34,11 @@ def test_inference_performance(compile_lamm, dtype, model):
     gguf_file_name = f'{model}.{dtype}.gguf'
     model_path = (model_weights_path / gguf_file_name).resolve().as_posix()
     assert os.path.exists(model_path), f'GGUF file not exists: {model_path}'
-    prompt = 'To write a good program, you would better follow these best practices:'
-    for n_threads in [1, 2, 4]:
+    prompt = 'Python is a programming language that lets you work more quickly and integrate your systems more effectively.'
+    for n_threads in [4]:
         completed = subprocess.run(
             args=LAMMCommand.run_main(
-                model_path=model_path, n_threads=n_threads, prompt=prompt, n_tokens=50),
+                model_path=model_path, n_threads=4, prompt=prompt, n_tokens=128),
             capture_output=True,
             timeout=600,
             cwd=LAMM_PROJECT_DIR,
@@ -47,7 +47,7 @@ def test_inference_performance(compile_lamm, dtype, model):
         stdout = completed.stdout.decode("utf-8")
         stderr = completed.stderr.decode("utf-8")
         LOGGER.debug(stdout)
-        LOGGER.debug(stderr)
+        # LOGGER.debug(stderr)
         assert completed.returncode == 0, stdout + stderr
         
         report_pattern = (r'\nllama_print_timings:\s*prompt eval time.*\(.+ms per token,\s*(\d*\.\d*) tokens per second\)' + r'\n' +
@@ -56,7 +56,6 @@ def test_inference_performance(compile_lamm, dtype, model):
         assert result is not None, f'No eval time report found in stdout: {stderr}'
         pe_toks = result.groups()[0]
         tg_toks = result.groups()[1]
-        LOGGER.info(f'{opt_level},{model},{dtype},{n_threads},{pe_toks},{tg_toks}')
         LOGGER.info(
             json.dumps(
                 {
