@@ -4,6 +4,7 @@ import subprocess
 import logging
 import re
 import os
+import json
 import pathlib
 
 import pytest
@@ -56,3 +57,15 @@ def test_inference_performance(compile_lamm, dtype, model):
         pe_toks = result.groups()[0]
         tg_toks = result.groups()[1]
         LOGGER.info(f'{opt_level},{model},{dtype},{n_threads},{pe_toks},{tg_toks}')
+        LOGGER.info(
+            json.dumps(
+                {
+                    'opt_level': opt_level,
+                    'model': model,
+                    'data_type': dtype,
+                    'n_threads': n_threads,
+                    'pe_toks': pe_toks,
+                    'tg_toks': tg_toks,
+                }
+            )
+        )
