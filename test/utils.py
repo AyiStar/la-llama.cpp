@@ -25,11 +25,12 @@ class LAMMCommand:
     
     @staticmethod
     def run_main(model_path: str, n_threads: int=1, prompt: str='Hello', n_tokens: int=100) -> list[str]:
-        benchmark_options = [
+        options = [
             '-m', model_path, 
             '-t', str(n_threads),
             '-n', str(n_tokens),
-            '-p', prompt
+            '-p', prompt,
+            '--mlock', '--ignore-eos'
         ]
-        run_cmd = ['./src/main'] + benchmark_options
+        run_cmd = ['./src/main'] + options
         return run_cmd

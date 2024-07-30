@@ -40,9 +40,11 @@ if __name__ == '__main__':
         result_dict = {}
         for x in all_results:
             key = (x['model'], x['data_type'])
-            result_dict.setdefault(key, [None] * 4)
-            assert result_dict[key][x['opt_level']] is None
+            result_dict.setdefault(key, [('', '')] * 4)
+            assert result_dict[key][x['opt_level']] == ('', '')
             result_dict[key][x['opt_level']] = (x['pe_toks'], x['tg_toks'])
+        for k in result_dict:
+            assert all(v is not None for v in result_dict[k]), f'result for {k} has None: {result_dict[k]}'
         # prompt evaluation table
         headers[0] = "Prompt Evaluation Performance (Tokens/Sec)"
         value_matrix = [
