@@ -15,6 +15,8 @@
 > 2. 测试多种模型：除7B和13B参数模型外，增加对1B、30B两种不同参数数量模型的测试；
 > 3. 工程优化：为支持以上扩展，对代码进行重构优化，并引入自动化test/benchmark；
 > 4. 报告更新：以下报告正文内容已与上述内容同步进行更新。
+>
+> 具体修改内容可直接通过git diff或Web UI与commit `95c67b74d1c0426b785e762502ea98f44553b60c`进行对比。
 
 
 
@@ -24,7 +26,7 @@
 
 * **项目目标**：将llama.cpp移植至龙芯处理器3A6000，并进行软硬件协同优化，加速模型的CPU推理速度，使得以Meta LLaMA为代表的流行的大语言模型能够以可接受的速度运行于龙芯平台；
 * **完成情况**：本项目的规划和进展情况可见[dev.md](dev.md)。截至本阶段，实现了从2bit到32bit共七种数据格式的推理优化加速，并在从1B到30B共四种参数规模的LLaMA模型上进行标准测试。较于未经优化的代码，在矩阵乘法和模型推理两项标准任务上均实现可观的性能加速。
-* **主要创新**：定位和分析了大语言模型推理的主要性能瓶颈；针对龙芯平台进行了**SIMD**和**Cache**两个方向的计算优化；同时支持**浮点**参数和**量化**参数的运算加速；在3A6000处理器上进行了运算正确性和运算性能的标准测试。
+* **主要创新**：定位和分析了大语言模型推理的主要性能瓶颈；针对龙芯平台进行了**SIMD**和**Cache**两个方向的计算优化；同时支持**浮点**参数和**量化**参数的运算加速；在3A6000处理器上进行了正确性和性能的标准测试。
 
 本技术报告是对本项目的阶段性总结，也希望为后续工作及其他相关工作提供一些启发，具体包含以下章节：
 1. 关于 llama.cpp 的背景介绍；
@@ -61,7 +63,7 @@ llama.cpp中的模型推理代码的本质，是利用GGML构建不同模型对�
 ### 1.3 模型量化
 除了C/C++带来的性能提升外，llama.cpp高度依赖于一种称为模型量化(model quantization)的推理优化技术，即通过更低精度的数据类型来存储模型参数，以牺牲参数精度为代价，显著降低参数的内存占用。例如，一个4字节的单精度浮点参数，可以存储为一个2字节半精度浮点，或一个1字节甚至4比特的整数。此外，一般会将多个参数（如32个）打包成一个block，同一个block内的参数共享某些额外信息，这些额外信息造成的存储和计算成本被block的大小所均摊。
 
-llama.cpp支持多种量化方法，在项目中命名为Q2_K, Q4_0, Q5_1等。Q代表Quantization，Q后的数字代表平均每个参数被量化后的比特数，末尾的数字或字母代表量化方法的"版本号"，不同版本的方法在具体的内存存储结构以及block共享信息上会有所不同。以Q4_1为例，在该方法中，每个参数被量化为4比特整数，而每32个参数被打包成一个block，结构如下：
+llama.cpp支持多种量化方法，在项目中命名为Q2_K, Q4_0, Q5_1等。Q代表Quantization，Q后的数字代表平均每个参数被量化后的比特数，末尾的数字或字母代表量化方法的"版本号"，不同版本的方法在具体的内存存储结构以及block共享信息上会有所不同。以Q4_1为例，在该方法中，每个参数被量化为一个4比特整数，而每32个参数被打包成一个block，结构如下：
 
 ```C
 // ggml-common.h
@@ -292,7 +294,7 @@ LA_INLINE vreg_t madd(vreg_t x, vreg_t y, vreg_t z) {
 
 在实现中，我们还针对AVX2实现了同样的接口（`src/lamm_simd_avx2.h`），因为其具有和LASX一样的256位向量寄存器，方便在其他平台同步开发测试，同时也展现了平台层抽象的优势。
 
-#### 4.3.2 优化逻辑层抽象
+#### 4.3.2 算子逻辑层抽象
 
 为了扩展支持多种量化格式的优化，我们对算子逻辑进行了抽象，具体来说，在`src/lamm_impl.hpp` 中，我们用一个 `LAMMImpl` 类包装了不同优化级别对应的总体优化逻辑：
 
@@ -603,9 +605,11 @@ make quantize -j8 LLAMA_LOONGARCH=1
 矩阵乘法的基准代码在 `src/la-benchmark-matmult.cpp` ，其修改自 llama.cpp 原项目中的 `examples/benchmark/benchmark-matmult.cpp` ，扩展了量化格式的支持以及进行了一定的代码重构，没有做实验设定上的修改，因此测试结果可直接与社区报告的结果进行比较。  
 模型推理则直接用 llama.cpp 项目中的 `examples/main/main.cpp` 进行推理。  
 
-我们以gFLOPS (giga floating point operations per second)作为衡量指标，分别测试单线程(t=1)和多线程(t=2/4)下的性能。如需要复现，可以在项目根目录执行以下命令：
+我们以gFLOPS (giga floating point operations per second)作为衡量指标，分别测试单线程(t=1)和多线程(t=2/4)下的性能。如需要复现，可以在项目根目录执行以下命令（需要安装pytest）：
 
 ```bash
+# need pytest to be installed
+# you can run `pip install pytest`
 pytest -q test/test_matmult_performance.py --log-level=INFO --log-file=test/mm_bench.log --log-format="%(message)s" --log-cli-level=DEBUG
 ```
 
@@ -652,6 +656,8 @@ pytest -q test/test_matmult_performance.py --log-level=INFO --log-file=test/mm_b
 我们以模型在prompt evaluation和text generation两阶段的token吞吐量作为衡量指标。如需要复现，可在项目根目录下运行以下命令（需要安装pytest）：
 
 ```bash
+# need pytest to be installed
+# you can run `pip install pytest`
 # benchmarking 1.1B model
 pytest -q test/test_inference_performance.py --dtype q2_k,q4_0,q4_1,q5_0,q5_1,q8_0,f32  --model tiny-llama-1.1b --log-level=INFO --log-file=test/infer_bench.1.1B.log --log-format="%(message)s"  --log-cli-level=DEBUG
 # benchmarking 7B model
@@ -714,7 +720,15 @@ pytest -q test/test_inference_performance.py --dtype q2_k  --model llama-30b --l
 | Meta-Llama-2-13B (dtype=Q8_0)            |                           1.51 |                                 2.61 |                                       1.81 |
 | llama-30b (dtype=Q2_K)                   |                           0.28 |                                 0.34 |                                       0.34 |
 
-实验结果表明，本团队所作优化，在模型推理的吞吐量上可实现3x-6x的加速，其中prompt evaluation阶段的加速效果比text generation阶段更为明显。这是因为，相对来说，前者更偏向compute-bounded，后者更偏向memory-bounded。因此，对于直接移植未经优化的代码，prompt evaluation和text generation的推理性能是差不多的，而优化过的代码在text generation在达到瓶颈。访存优化也是下一阶段我们的重点优化目标。
+实验结果表明，本团队所作优化，在模型推理的吞吐量上可实现3x-6x的加速。
+
+### 5.3 发现与解释
+
+prompt evaluation阶段的加速效果比text generation阶段更为明显。这是因为，相对来说，前者更偏向compute-bounded，后者更偏向memory-bounded。因此优化过的代码容易在text generation在遇到访存瓶颈。访存优化也是下一阶段我们的重点优化目标。
+
+在一些情况下，Cache+SIMD优化相对单SIMD优化来所性能会下降。推测是因为选取了不合适的块大小（即`B0` 和 `B1` 参数）。当 `B0=B1=1` 时，算子会退化成单SIMD优化情况，因此理论上，在最优参数设置下，Cache+SIMD优化应以SIMD优化为性能下界。而负优化出现的原因可能是，分块越大，需要的向量寄存器数量越多，在过大的情况下反而造成额外的访存。目前的实现中，`B0=B1=4` 是固定的。我们计划在未来工作中引入自动调优机制，针对不同的数据格式确定最合适的块大小。
+
+我们注意到对于不同量化方法，并不是量化程度越高推理性能越高，例如Q2_K明显比Q4_1要低一些。一方面可能是优化实现上还有空间，另一方面也是因为不同量化方法在反量化时复杂程度不同，Q2_K比Q4_1计算逻辑复杂得多，需要的寄存器也更多，更难以进行性能优化。
 
 
 
@@ -800,7 +814,7 @@ llama.cpp是一个关注度很高且社区推动力很强的优秀开源项目�
 
 
 ### 6.2 Mozilla llamafile团队的优化
-[llamafile](https://github.com/mozilla-Ocho/llamafile)是Mozilla公司支持的另一个针对模型推理的开源项目，团队中的开发者将部分CPU优化算子贡献到了llama.cpp并提交了[PR](https://github.com/ggerganov/llama.cpp/pull/6414)。其优化思路与我们类似，也是从SIMD加速和Cache优化两个方向。与本项目的主要区别在于，其主要针对Intel/ARM平台进行优化，本项目主要针对LoongArch平台。另外，该PR只实现了Q4_0量化方法的优化，本项目实现了Q2_K/Q4_0/Q4_1/Q5_0/Q5_1/Q8_0多种量化方法优化。 
+[llamafile](https://github.com/mozilla-Ocho/llamafile)是Mozilla公司支持的另一个针对模型推理的开源项目，团队中的开发者将部分CPU优化算子贡献到了llama.cpp并提交了[PR](https://github.com/ggerganov/llama.cpp/pull/6414)。其优化思路与我们类似，也是从SIMD加速和Cache优化两个方向。与本项目的主要区别在于，其主要针对Intel/ARM平台进行优化，本项目主要针对LoongArch平台。另外，该PR只实现了Q4_0量化方法的优化，本项目实现了Q2_K、Q4_0、Q4_1、Q5_0、Q5_1、Q8_0多种量化方法优化。 
 
 
 
