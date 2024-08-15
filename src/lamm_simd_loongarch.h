@@ -28,6 +28,12 @@ using ivreg_t = __m256i;  // integer vector register type
 using hvreg_t = __m128;   // half vector register type
 using hivreg_t = __m128i; // half integer register type
 
+/*
+Part of the work below belongs to Loongson Corp.
+https://github.com/ggerganov/llama.cpp/pull/6454
+
+*/
+
 #ifdef __clang__
 #define VREGS_PREFIX "$vr"
 #define XREGS_PREFIX "$xr"
