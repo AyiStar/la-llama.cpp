@@ -87,7 +87,7 @@ LA_INLINE void lamm_simd_block_kernel(const block_q8_0 *a, const block_q8_0 *b,
 #undef FN
 
 #define INNER_FN(N0, N1)                                                       \
-  if constexpr (B1 > 0) {                                                      \
+  if constexpr (B1 > N1) {                                                      \
     vc##N0##N1 =                                                               \
         madd(mul(vad, vbd##N1), mul_sum_us8_pairs_float(va_qs, vb##N1##_qs),   \
              vc##N0##N1);                                                      \

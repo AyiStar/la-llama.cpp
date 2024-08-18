@@ -84,7 +84,7 @@ LA_INLINE void lamm_simd_block_kernel(const block_q4_1 *a, const block_q8_1 *b,
 #undef FN
 
 #define INNER_FN(N0, N1)                                                       \
-  if constexpr (B1 > 0) {                                                      \
+  if constexpr (B1 > N1) {                                                      \
     summs[N0][N1] +=                                                           \
         GGML_FP16_TO_FP32(ai##N0[k].m) * GGML_FP16_TO_FP32(bj##N1[k].s);       \
     vc##N0##N1 =                                                               \
